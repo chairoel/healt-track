@@ -1,0 +1,166 @@
+---
+description: Single-module Android code style and conventions
+globs: ["HealthTrack/**/*.kt"]
+alwaysApply: false
+---
+
+# Single-Module Code Style Guide
+
+Base package: `com.mascill.healthtrack`
+
+## Package Naming
+
+```kotlin
+com.mascill.healthtrack.data
+com.mascill.healthtrack.data.datasource.local
+com.mascill.healthtrack.data.datasource.remote
+com.mascill.healthtrack.data.mapper
+com.mascill.healthtrack.data.model.request
+com.mascill.healthtrack.data.model.response
+com.mascill.healthtrack.data.repository
+com.mascill.healthtrack.domain.model
+com.mascill.healthtrack.domain.repository
+com.mascill.healthtrack.domain.usecase
+com.mascill.healthtrack.presentation.home
+com.mascill.healthtrack.di
+com.mascill.healthtrack.util
+```
+
+Do not add `data/service/` (Retrofit) for Supabase CRUD. `data/model/entity/` holds Room entities. Preferences use DataStore (`healthtrack_prefs`), not Room.
+
+## File Naming
+
+| Type | File Name | Location |
+|---|---|---|
+| Domain Model | `Profile.kt` | `domain/model/` |
+| Response | `ProfileResponse.kt` | `data/model/response/` |
+| Request | `ProfileOnboardingRequest.kt` | `data/model/request/` |
+| Remote DataSource | `ProfileRemoteDataSource.kt` | `data/datasource/remote/` |
+| Repository Interface | `ProfileRepository.kt` | `domain/repository/` |
+| Repository Impl | `ProfileRepositoryImpl.kt` | `data/repository/` |
+| UseCase | `CompleteOnboardingUseCase.kt` | `domain/usecase/` |
+| ViewModel | `HomeViewModel.kt` | `presentation/home/` |
+| Screen | `HomeScreen.kt` | `presentation/home/` |
+| UI State | `HomeUIState.kt` | `presentation/home/model/` |
+| Component | `UserCard.kt` | `presentation/home/component/` |
+| Shared Component | `LoadingIndicator.kt` | `presentation/common/component/` |
+
+## Class Naming Conventions
+
+```kotlin
+data class Profile(val id: String, val userId: String)
+
+@Serializable
+data class ProfileResponse(
+    val id: String,
+    @SerialName("user_id") val userId: String,
+)
+
+interface ProfileRepository {
+    suspend fun getProfile(): Result<Profile>
+}
+
+class ProfileRepositoryImpl @Inject constructor(
+    private val remote: ProfileRemoteDataSource,
+    private val dispatcher: AppDispatcher,
+) : ProfileRepository
+
+class GetProfileUseCase @Inject constructor(
+    private val repository: ProfileRepository,
+)
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(...)
+
+@Composable
+fun HomeScreen(...)
+
+data class HomeUIState(...)
+```
+
+DTOs use `@Serializable` / `@SerialName`, **not** Moshi `@Json`.
+
+## Function Naming
+
+```kotlin
+fun ProfileResponse.toProfile(): Profile
+fun MutableList<NavKey>.navigateToHome()
+fun onSubmitClick()
+fun loadData()
+
+@Composable fun HomeScreen()
+@Composable private fun ContentSection()
+```
+
+## Constants
+
+URL, publishable key, and Google client id live in `BuildConfig` from `local.properties`. **Never** put them in `Constants.kt` or git.
+
+```kotlin
+object Constants {
+    const val TIMEOUT_SECONDS = 30L
+
+    object Prefs {
+        const val NAME = "healthtrack_prefs"
+        const val KEY_THEME_MODE = "theme_mode"
+    }
+
+    object Tables {
+        const val PROFILES = "profiles"
+    }
+}
+```
+
+## Compose Dimensions
+
+```kotlin
+private const val SCREEN_PADDING = 16
+private const val ITEM_SPACING = 8
+
+@Composable
+fun MyScreen() {
+    Column(
+        modifier = Modifier.padding(SCREEN_PADDING.dp),
+        verticalArrangement = Arrangement.spacedBy(ITEM_SPACING.dp),
+    ) { ... }
+}
+```
+
+## Documentation
+
+Public types and functions need KDoc (Detekt). Do not add new issues to `detekt-baseline.xml`.
+
+```kotlin
+/**
+ * Repository for learner profile operations.
+ */
+interface ProfileRepository {
+    /**
+     * One-shot fetch of the current user's profile.
+     */
+    suspend fun getProfile(): Result<Profile>
+}
+```
+
+## Result Handling
+
+```kotlin
+suspend fun getProfile(): Result<Profile>
+
+repository.getProfile()
+    .onSuccess { profile -> /* handle success */ }
+    .onFailure { error -> /* map to AppError in presentation */ }
+```
+
+User-facing errors: `AppError` in `presentation/common/model`, not copy per screen.
+
+## Trailing Commas
+
+Enabled for git diffs.
+
+## Import Rules
+
+- No wildcard imports
+- Organize imports alphabetically within groups
+- Remove unused imports
+- `io.github.jan.supabase` only under `data/` and `di/`

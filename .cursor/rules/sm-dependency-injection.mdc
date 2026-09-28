@@ -1,0 +1,129 @@
+---
+description: Single-module Hilt dependency injection patterns
+globs: ["HealthTrack/**/di/**/*.kt", "HealthTrack/**/*Module.kt", "HealthTrack/**/*ViewModel.kt"]
+alwaysApply: false
+---
+
+# Hilt (DevSpeak)
+
+```
+di/
+├── AppModule.kt
+├── DispatcherModule.kt
+├── NetworkModule.kt       # OkHttp only (SSE Phase 2)
+├── SupabaseModule.kt      # supabase-kt Auth + Postgrest
+├── RepositoryModule.kt    # @Binds interface → Impl
+├── DataStoreModule.kt     # healthtrack_prefs
+└── DatabaseModule.kt      # Room
+```
+
+Do **not** add Retrofit or Moshi. `DataStoreModule` and `DatabaseModule` are both required.
+
+SDK types (`SupabaseClient`, `Auth`, `Postgrest`) are provided in `SupabaseModule` and consumed only by `data/`. ViewModels inject UseCases (or domain repository interfaces), never `SupabaseClient`.
+
+## NetworkModule — OkHttp
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(Constants.TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(Constants.TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BASIC
+            },
+        )
+        .build()
+}
+```
+
+Do not share this client with Ktor. Do not put `BASE_URL` / API keys in `Constants`.
+
+## SupabaseModule
+
+URL and publishable/anon key from `BuildConfig` (`local.properties`). Never `service_role`.
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+object SupabaseModule {
+
+    @Provides
+    @Singleton
+    fun provideSupabaseClient(): SupabaseClient = createSupabaseClient(
+        supabaseUrl = BuildConfig.SUPABASE_URL,
+        supabaseKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+    ) {
+        install(Auth) {
+            autoLoadFromStorage = true
+            alwaysAutoRefresh = true
+            autoSaveToStorage = true
+        }
+        install(Postgrest)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAuth(client: SupabaseClient): Auth = client.auth
+
+    @Provides
+    @Singleton
+    fun providePostgrest(client: SupabaseClient): Postgrest = client.postgrest
+}
+```
+
+Do **not** `install(ComposeAuth)`, `realtime-kt`, `functions-kt`, or `storage-kt` until that phase.
+
+## RepositoryModule
+
+```kotlin
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(impl: AuthRepositoryImpl): AuthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindProfileRepository(impl: ProfileRepositoryImpl): ProfileRepository
+}
+```
+
+Remote data sources use `@Inject constructor` — no extra module.
+
+## DispatcherModule
+
+```kotlin
+@Provides
+@Singleton
+fun provideAppDispatcher(): AppDispatcher = AppDispatcher(
+    io = Dispatchers.IO,
+    main = Dispatchers.Main,
+    default = Dispatchers.Default,
+)
+```
+
+## ViewModel
+
+```kotlin
+@HiltViewModel
+class SignInViewModel @Inject constructor(
+    private val signInWithEmail: SignInWithEmailUseCase,
+    private val dispatcher: AppDispatcher,
+) : ViewModel()
+```
+
+## Scopes
+
+| Scope | Use for |
+|---|---|
+| `@Singleton` | `SupabaseClient`, OkHttp, DataStore, repositories |
+| `@Inject` on data source | Fine with `@Singleton` on the class |
+| `@ViewModelScoped` | Rare; prefer `viewModelScope` |

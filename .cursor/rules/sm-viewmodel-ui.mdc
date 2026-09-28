@@ -1,0 +1,400 @@
+---
+description: Single-module ViewModel and Compose UI patterns
+globs: ["HealthTrack/**/presentation/**/*.kt"]
+alwaysApply: false
+---
+
+# Single-Module ViewModel & UI Patterns
+
+## ViewModel Structure
+
+```kotlin
+// presentation/home/HomeViewModel.kt
+package com.mascill.healthtrack.presentation.home
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.mascill.healthtrack.domain.usecase.GetAllUsersUseCase
+import com.mascill.healthtrack.presentation.home.model.HomeUIState
+import com.mascill.healthtrack.util.AppDispatcher
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val getAllUsersUseCase: GetAllUsersUseCase,
+    private val dispatcher: AppDispatcher,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(HomeUIState())
+    val uiState: StateFlow<HomeUIState> = _uiState.asStateFlow()
+
+    init {
+        loadUsers()
+    }
+
+    fun loadUsers() {
+        viewModelScope.launch(dispatcher.io) {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            
+            getAllUsersUseCase()
+                .onSuccess { users ->
+                    _uiState.update { 
+                        it.copy(isLoading = false, users = users) 
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update { 
+                        it.copy(isLoading = false, error = error.message) 
+                    }
+                }
+        }
+    }
+
+    fun onUserClick(userId: String) {
+        _uiState.update { it.copy(selectedUserId = userId) }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedUserId = null) }
+    }
+}
+```
+
+## UI State Model
+
+```kotlin
+// presentation/home/model/HomeUIState.kt
+package com.mascill.healthtrack.presentation.home.model
+
+import com.mascill.healthtrack.domain.model.User
+
+data class HomeUIState(
+    val isLoading: Boolean = false,
+    val users: List<User> = emptyList(),
+    val error: String? = null,
+    val selectedUserId: String? = null,
+)
+```
+
+## Screen Composable
+
+```kotlin
+// presentation/home/HomeScreen.kt
+package com.mascill.healthtrack.presentation.home
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mascill.healthtrack.domain.model.User
+import com.mascill.healthtrack.presentation.common.component.LoadingIndicator
+import com.mascill.healthtrack.presentation.home.component.UserCard
+import com.mascill.healthtrack.presentation.home.model.HomeUIState
+import com.mascill.healthtrack.presentation.theme.AppTheme
+
+@Composable
+fun HomeScreen(
+    onUserClick: (String) -> Unit,
+    viewModel: HomeViewModel = hiltViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    HomeContent(
+        uiState = uiState,
+        onUserClick = { userId ->
+            viewModel.onUserClick(userId)
+            onUserClick(userId)
+        },
+        onRetry = viewModel::loadUsers,
+    )
+}
+
+@Composable
+private fun HomeContent(
+    uiState: HomeUIState,
+    onUserClick: (String) -> Unit,
+    onRetry: () -> Unit,
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        when {
+            uiState.isLoading -> {
+                LoadingIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            uiState.error != null -> {
+                ErrorContent(
+                    message = uiState.error,
+                    onRetry = onRetry,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            uiState.users.isEmpty() -> {
+                EmptyContent(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            else -> {
+                UserList(
+                    users = uiState.users,
+                    onUserClick = onUserClick,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserList(
+    users: List<User>,
+    onUserClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(
+            items = users,
+            key = { it.id },
+        ) { user ->
+            UserCard(
+                user = user,
+                onClick = { onUserClick(user.id) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorContent(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(text = message)
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = onRetry) {
+            Text("Retry")
+        }
+    }
+}
+
+@Composable
+private fun EmptyContent(modifier: Modifier = Modifier) {
+    Text(
+        text = "No users found",
+        modifier = modifier,
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenPreview() {
+    AppTheme {
+        HomeContent(
+            uiState = HomeUIState(
+                users = listOf(
+                    User("1", "John Doe", "john@example.com", 0L),
+                    User("2", "Jane Doe", "jane@example.com", 0L),
+                )
+            ),
+            onUserClick = {},
+            onRetry = {},
+        )
+    }
+}
+```
+
+## Feature Component
+
+```kotlin
+// presentation/home/component/UserCard.kt
+package com.mascill.healthtrack.presentation.home.component
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import com.mascill.healthtrack.domain.model.User
+import com.mascill.healthtrack.presentation.theme.AppTheme
+
+@Composable
+fun UserCard(
+    user: User,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+        ) {
+            Text(
+                text = user.name,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = user.email,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun UserCardPreview() {
+    AppTheme {
+        UserCard(
+            user = User("1", "John Doe", "john@example.com", 0L),
+            onClick = {},
+        )
+    }
+}
+```
+
+## Shared Components
+
+```kotlin
+// presentation/common/component/LoadingIndicator.kt
+package com.mascill.healthtrack.presentation.common.component
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+
+@Composable
+fun LoadingIndicator(
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator()
+    }
+}
+```
+
+## State Collection
+
+Always use `collectAsStateWithLifecycle`:
+
+```kotlin
+val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+```
+
+## Event Handling with Sealed Class
+
+```kotlin
+// presentation/home/model/HomeEvent.kt
+sealed interface HomeEvent {
+    data class ShowSnackbar(val message: String) : HomeEvent
+    data class NavigateToDetail(val userId: String) : HomeEvent
+}
+
+// In ViewModel
+private val _events = MutableSharedFlow<HomeEvent>()
+val events = _events.asSharedFlow()
+
+private fun showError(message: String) {
+    viewModelScope.launch {
+        _events.emit(HomeEvent.ShowSnackbar(message))
+    }
+}
+
+// In Screen
+LaunchedEffect(Unit) {
+    viewModel.events.collect { event ->
+        when (event) {
+            is HomeEvent.ShowSnackbar -> {
+                snackbarHostState.showSnackbar(event.message)
+            }
+            is HomeEvent.NavigateToDetail -> {
+                onNavigateToDetail(event.userId)
+            }
+        }
+    }
+}
+```
+
+## Theme Setup
+
+```kotlin
+// presentation/theme/Theme.kt
+package com.mascill.healthtrack.presentation.theme
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+
+private val LightColorScheme = lightColorScheme(
+    primary = /* ... */,
+    onPrimary = /* ... */,
+    // ...
+)
+
+private val DarkColorScheme = darkColorScheme(
+    primary = /* ... */,
+    onPrimary = /* ... */,
+    // ...
+)
+
+@Composable
+fun AppTheme(
+    darkTheme: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content,
+    )
+}
+```
+
+## Preview Best Practices
+
+```kotlin
+@Preview(showBackground = true)
+@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun MyComponentPreview() {
+    AppTheme {
+        MyComponent(...)
+    }
+}
+```

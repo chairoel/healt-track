@@ -1,0 +1,169 @@
+---
+description: Single-module navigation patterns with Jetpack Navigation 3
+globs: ["HealthTrack/**/navigation/**/*.kt", "HealthTrack/**/*Route.kt"]
+alwaysApply: false
+---
+
+# Single-Module Navigation (Navigation 3)
+
+This project uses **Navigation 3**, not Navigation 2 / Navigation Compose
+(`NavHost`, `NavController`, `composable<Route>`). Do not add
+`androidx.navigation:navigation-compose`.
+
+Keep Navigation 3, AGP, Kotlin, and Compose BOM versions from
+`gradle/libs.versions.toml`. Do not downgrade them to match older skill
+templates.
+
+## Navigation Structure
+
+```
+presentation/navigation/
+├── AppNavHost.kt         # NavDisplay + bottom bar
+├── Routes.kt             # NavKey destinations
+└── NavExtensions.kt      # back-stack helpers
+```
+
+## Route definitions
+
+Every destination is a `@Serializable` type that implements `NavKey`:
+
+```kotlin
+// presentation/navigation/Routes.kt
+package com.mascill.healthtrack.presentation.navigation
+
+import androidx.navigation3.runtime.NavKey
+import kotlinx.serialization.Serializable
+
+@Serializable
+data object HomeRoute : NavKey
+
+@Serializable
+data object PracticeRoute : NavKey
+
+@Serializable
+data class ConversationRoute(val conversationId: String) : NavKey
+```
+
+## NavDisplay setup
+
+```kotlin
+// presentation/navigation/AppNavHost.kt
+@Composable
+fun AppNavHost(modifier: Modifier = Modifier) {
+    val backStack = rememberNavBackStack(HomeRoute)
+
+    NavDisplay(
+        backStack = backStack,
+        onBack = { backStack.navigateBack() },
+        modifier = modifier,
+        entryDecorators = listOf(
+            rememberSaveableStateHolderNavEntryDecorator(),
+            rememberViewModelStoreNavEntryDecorator(),
+        ),
+        entryProvider = entryProvider {
+            entry<HomeRoute> {
+                HomeScreen(
+                    onOpenConversation = { id ->
+                        backStack.navigateTo(ConversationRoute(id))
+                    },
+                )
+            }
+            entry<ConversationRoute> { key ->
+                ConversationScreen(
+                    conversationId = key.conversationId,
+                    onBackClick = { backStack.navigateBack() },
+                )
+            }
+        },
+    )
+}
+```
+
+Required libraries:
+
+```kotlin
+implementation(libs.androidx.navigation3.runtime)
+implementation(libs.androidx.navigation3.ui)
+implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+implementation(libs.kotlinx.serialization.json)
+```
+
+`rememberViewModelStoreNavEntryDecorator()` scopes a `ViewModel` to the
+`NavEntry`. Screens keep using:
+
+```kotlin
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+
+@Composable
+fun HomeScreen(
+    viewModel: HomeViewModel = hiltViewModel(),
+)
+```
+
+Do not import `androidx.hilt.navigation.compose.hiltViewModel`
+(Navigation 2).
+
+## Back-stack helpers
+
+```kotlin
+// presentation/navigation/NavExtensions.kt
+fun MutableList<NavKey>.navigateTo(key: NavKey) {
+    add(key)
+}
+
+fun MutableList<NavKey>.navigateBack() {
+    if (size > 1) removeLastOrNull()
+}
+
+fun MutableList<NavKey>.navigateToTopLevel(key: NavKey) {
+    if (lastOrNull() == key) return
+    add(key)
+    while (firstOrNull() != key) {
+        removeAt(0)
+    }
+}
+```
+
+- `navigateTo` — push a screen (chat, detail)
+- `navigateBack` — pop; keep at least the start destination
+- `navigateToTopLevel` — switch a bottom-nav tab and drop nested keys
+
+There is no `NavController`. Pass `backStack` (or a lambda like
+`onOpenConversation`) into screens.
+
+## Bottom navigation
+
+```kotlin
+val currentKey = backStack.lastOrNull()
+
+NavigationBar {
+    BottomNavItem.entries.forEach { item ->
+        val selected = currentKey == item.key
+        NavigationBarItem(
+            selected = selected,
+            onClick = { backStack.navigateToTopLevel(item.key) },
+            icon = { Icon(item.icon, contentDescription = item.label) },
+            label = { Text(item.label) },
+        )
+    }
+}
+```
+
+Use a single `rememberNavBackStack` until a screen actually needs an
+independent tab back stack. Multiple back stacks
+(`rememberDecoratedNavEntries`) can wait until then.
+
+## Adding a screen
+
+1. Add a `NavKey` to `Routes.kt`
+2. Add `entry<YourRoute>` in `AppNavHost`
+3. Push with `backStack.navigateTo(YourRoute(...))`
+
+## Do not use
+
+```kotlin
+// Navigation 2 — not this project
+NavHost(...) { composable<HomeRoute> { } }
+navController.navigate(HomeRoute)
+navController.popBackStack()
+```

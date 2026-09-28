@@ -1,0 +1,136 @@
+---
+description: Single-module Android project architecture with Clean Architecture package structure
+globs: ["HealthTrack/**/*.kt", "HealthTrack/**/*.kts"]
+alwaysApply: false
+---
+
+# Single-Module Architecture Rules
+
+This project uses **single-module** Clean Architecture via **package** separation.
+Base package: `com.mascill.healthtrack`.
+
+## Stack (DevSpeak)
+
+Default — do **not** add alternatives unless the user asks:
+
+| Concern | Use |
+|---|---|
+| Auth + Postgres CRUD | supabase-kt (`auth-kt`, `postgrest-kt`) + Ktor engine |
+| DTO JSON | `kotlinx.serialization` (`@Serializable`, `@SerialName`) |
+| Chat SSE (Phase 2) | OkHttp in `NetworkModule` |
+| Preferences | DataStore, name `healthtrack_prefs` |
+| Local database | Room |
+
+**Do not** add Retrofit or Moshi. `data/service/` is unused. DataStore and Room are both part of this app: prefs in DataStore, tables in Room.
+
+SDK (`io.github.jan.supabase`) **only** in `data/` and `di/SupabaseModule`. Never in `domain/` or `presentation/`.
+
+## Package Structure
+
+```
+app/src/main/kotlin/com/mascill/healthtrack/
+├── data/
+│   ├── datasource/
+│   │   ├── local/               # DataStore prefs and Room DAO
+│   │   └── remote/              # *RemoteDataSource (supabase-kt / SSE)
+│   ├── mapper/
+│   ├── model/
+│   │   ├── entity/              # Room entities
+│   │   ├── request/
+│   │   └── response/            # @Serializable DTOs
+│   └── repository/              # *RepositoryImpl
+├── domain/
+│   ├── model/
+│   ├── repository/              # interfaces — no SDK
+│   └── usecase/
+├── presentation/
+│   ├── common/component + model
+│   ├── navigation/
+│   ├── theme/
+│   └── [feature]/
+├── di/
+│   ├── AppModule.kt
+│   ├── DispatcherModule.kt
+│   ├── NetworkModule.kt         # OkHttp (SSE)
+│   ├── SupabaseModule.kt        # Auth + Postgrest
+│   ├── RepositoryModule.kt
+│   ├── DataStoreModule.kt       # healthtrack_prefs
+│   └── DatabaseModule.kt        # Room
+├── util/
+├── App.kt
+└── MainActivity.kt
+```
+
+## Layer Dependencies
+
+```
+presentation → domain → data
+```
+
+### ALLOWED
+- `presentation` → `domain` (UseCases, repository interfaces, domain models)
+- `data` → `domain`
+- Any layer → `util`, `di`
+
+### FORBIDDEN
+- `domain` → `data` / `presentation`
+- `data` → `presentation`
+- `presentation` or `domain` importing `io.github.jan.supabase`
+
+## Feature Package Structure
+
+```
+presentation/[feature]/
+├── component/
+├── model/                        # [Feature]UIState.kt
+├── [Feature]Screen.kt
+└── [Feature]ViewModel.kt
+```
+
+## Build Configuration
+
+AGP 9 includes Kotlin — do not apply `org.jetbrains.kotlin.android`.
+Pin versions from `gradle/libs.versions.toml` (Navigation 3, Compose BOM, supabase-kt BOM).
+Use Navigation 3 (`NavDisplay` / `NavKey`), not Navigation Compose `NavHost`.
+
+Add the Room plugin and DataStore. Do **not** add Retrofit or Moshi. Serialization plugin is required (NavKey + DTOs).
+
+## Naming Conventions
+
+| Type | Pattern | Example |
+|---|---|---|
+| Domain model | `*` | `Profile` |
+| Response | `*Response` | `ProfileResponse` |
+| Request | `*Request` | `ProfileOnboardingRequest` |
+| Remote data source | `*RemoteDataSource` | `ProfileRemoteDataSource` |
+| Repository interface | `*Repository` | `ProfileRepository` |
+| Repository impl | `*RepositoryImpl` | `ProfileRepositoryImpl` |
+| UseCase | `*UseCase` | `CompleteOnboardingUseCase` |
+| ViewModel | `*ViewModel` | `SignInViewModel` |
+| Screen | `*Screen` | `SignInScreen` |
+| UI State | `*UIState` | `SignInUIState` |
+
+## Import Organization
+
+```kotlin
+// 1. Android/Androidx
+import android.content.Context
+import androidx.compose.runtime.Composable
+
+// 2. Third-party (supabase only in data/ and di/)
+import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.auth.Auth
+
+// 3. Project - Domain
+import com.mascill.healthtrack.domain.model.Profile
+import com.mascill.healthtrack.domain.repository.ProfileRepository
+
+// 4. Project - Data
+import com.mascill.healthtrack.data.repository.ProfileRepositoryImpl
+
+// 5. Project - Presentation
+import com.mascill.healthtrack.presentation.home.HomeViewModel
+
+// 6. Project - Utilities
+import com.mascill.healthtrack.util.Constants
+```

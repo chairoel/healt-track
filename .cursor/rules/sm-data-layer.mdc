@@ -1,0 +1,141 @@
+---
+description: Single-module data layer — Repository, RemoteDataSource, mapper (supabase-kt)
+globs: ["HealthTrack/**/data/**/*.kt", "HealthTrack/**/domain/**/*.kt"]
+alwaysApply: false
+---
+
+# Data Layer (DevSpeak)
+
+CRUD and Auth go through **supabase-kt** in `data/`. Domain sees only repository interfaces.
+
+Do **not** create Retrofit `*Service` or Moshi DTOs. Preferences go through DataStore (`healthtrack_prefs`). Local tables use Room entities and DAOs.
+
+## Repository Interface (domain)
+
+```kotlin
+interface ProfileRepository {
+    fun observeProfile(): Flow<Profile?>
+    suspend fun getProfile(): Result<Profile>
+}
+```
+
+No Android, Supabase, or HTTP types on this interface.
+
+## Remote DataSource (data)
+
+Wrap supabase-kt here. Inject `Auth` / `SupabaseClient` into data sources, never ViewModels.
+Always `filter { eq("user_id", userId) }`. After `update`, call `select()` to decode the row.
+
+```kotlin
+@Singleton
+class ProfileRemoteDataSource @Inject constructor(
+    private val client: SupabaseClient,
+) {
+    suspend fun fetchProfile(userId: String): ProfileResponse =
+        client.from(Constants.Tables.PROFILES)
+            .select {
+                filter { eq("user_id", userId) }
+            }
+            .decodeSingle()
+
+    suspend fun updateOnboarding(
+        userId: String,
+        request: ProfileOnboardingRequest,
+    ): ProfileResponse =
+        client.from(Constants.Tables.PROFILES)
+            .update(request) {
+                filter { eq("user_id", userId) }
+                select()
+            }
+            .decodeSingle()
+}
+```
+
+Chat streaming (Phase 2): OkHttp SSE in a remote data source, still behind `ChatRepository`.
+
+## DTO
+
+`kotlinx.serialization`. Column names = Postgres snake_case.
+
+```kotlin
+@Serializable
+data class ProfileResponse(
+    val id: String,
+    @SerialName("user_id") val userId: String,
+    @SerialName("english_level") val englishLevel: String? = null,
+    @SerialName("learning_goals") val learningGoals: List<String> = emptyList(),
+)
+```
+
+## Mapper
+
+Enum **name** = stored text. Unknown strings → `null` / drop (do not crash).
+
+```kotlin
+fun ProfileResponse.toProfile(): Profile = Profile(
+    id = id,
+    userId = userId,
+    englishLevel = englishLevel.toEnumOrNull<EnglishLevel>(),
+    developerRole = developerRole.toEnumOrNull<DeveloperRole>(),
+    dailyGoalMinutes = DailyGoalMinutes.fromMinutes(dailyGoalMinutes),
+    learningGoals = learningGoals.mapNotNull { it.toEnumOrNull<LearningGoal>() },
+    explanationLanguage = explanationLanguage,
+    preferredDifficulty = preferredDifficulty,
+)
+
+internal inline fun <reified T : Enum<T>> String?.toEnumOrNull(): T? {
+    if (this.isNullOrBlank()) return null
+    return enumValues<T>().find { it.name == this }
+}
+```
+
+Full templates (request body, observe+refresh, mapper/UseCase tests): skill `single-module-create-repository`.
+
+## Repository Implementation
+
+```kotlin
+class ProfileRepositoryImpl @Inject constructor(
+    private val remote: ProfileRemoteDataSource,
+    private val dispatcher: AppDispatcher,
+) : ProfileRepository {
+
+    override suspend fun getProfile(): Result<Profile> =
+        withContext(dispatcher.io) {
+            try {
+                Result.success(remote.fetchProfile(userId).toProfile())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+}
+```
+
+Rethrow `CancellationException`. Map SDK errors to `AppError` in **presentation** (or a data mapper used only from impl), not in UseCases.
+
+## UseCase
+
+```kotlin
+class ObserveProfileUseCase @Inject constructor(
+    private val repository: ProfileRepository,
+) {
+    operator fun invoke(): Flow<Profile?> = repository.observeProfile()
+}
+```
+
+UseCases must not import `io.github.jan.supabase`.
+
+## Local: DataStore and Room
+
+Both are used.
+
+- **DataStore** (`healthtrack_prefs`, `data/datasource/local/`): theme and other preferences. Auth session storage is handled by supabase-kt Auth — do not duplicate tokens in DataStore. Do not put measurement rows in prefs.
+- **Room** (entity, DAO, `DatabaseModule`): local tables. For HealthTrack that is `tubuh` and `ukur`, as in `docs/rencana-aplikasi-android.md`.
+
+## Not default (do not scaffold)
+
+| Avoid | Unless |
+|---|---|
+| Retrofit `data/service/` + Moshi | User asks to talk to a non-Supabase REST API |
+| `compose-auth` in `presentation/` | Never — Credential Manager + UseCase instead |

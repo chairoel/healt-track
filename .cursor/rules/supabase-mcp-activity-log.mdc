@@ -1,0 +1,66 @@
+---
+description: Log MCP calls that touch the DevSpeak Supabase project; keep docs-plan/supabase files in their roles
+globs: ["HealthTrack/**"]
+alwaysApply: false
+---
+
+# Supabase docs and MCP log
+
+## File roles (`docs-plan/supabase/`)
+
+| File | Role |
+|---|---|
+| `00_MCP_ACTIVITY_LOG.md` | Running log. Append only. Newest at the bottom. |
+| `01_SETUP.md` | Current setup guide. Edit in place when Auth, schema, or steps change. |
+| `02_ISTILAH.md` | Glossary. Add terms here; do not duplicate into other files. |
+| `03_SETUP_AWAL.md` | Archive of the first setup (20–21 Sep 2026). Do not overwrite. |
+| `04_LOCAL_PROPERTIES.md` | How to get Android `local.properties` values (URL, publishable key, Google Web Client ID). |
+
+Do **not** add a new numbered file for a small change (extra column, policy tweak). Update `01_SETUP.md` and append to `00`.
+
+A **new** file (`05_…`) is only for a separate topic (Edge Function, Storage, and so on) that would clutter `01_SETUP.md`.
+
+## After a Supabase MCP call that hits the project
+
+Log **project** traffic, not every tool in namespace `plugin-supabase-supabase`.
+
+**Write to the log** (success or failure) when the call reads or changes
+the DevSpeak project (`pgqjcfabiiaebevqnads`): tables, SQL, migrations,
+advisors, Auth/project settings, keys lookup, Edge Functions, branches,
+logs, types, cost, pause/restore, and similar.
+
+**Do not log** docs-only tools such as `search_docs`. That searches
+public documentation. It does not talk to the project database or Auth.
+
+If unsure: did this touch **this** project’s data or config? Yes → log.
+No → skip.
+
+When logging: **append** to `docs-plan/supabase/00_MCP_ACTIVITY_LOG.md`
+before you finish the turn.
+
+Do not overwrite or reorder old entries.
+
+Each entry must include:
+
+- Local time **WIB (UTC+7)**, `YYYY-MM-DD HH:MM`
+- MCP tool name
+- Short purpose
+- Short result (ok / failed + finding)
+- Project ref when relevant (`pgqjcfabiiaebevqnads`)
+
+Never log anon/publishable keys, `service_role`, DB password, Google
+Client ID/secret, or user row data (email, tokens).
+
+Write new entries in English:
+
+```markdown
+### YYYY-MM-DD HH:MM WIB
+
+- **tool:** `tool_name`
+- **purpose:** …
+- **result:** …
+```
+
+Several tools in the same minute may share one time heading.
+
+If MCP ran but the log file could not be updated, say so in the reply.
