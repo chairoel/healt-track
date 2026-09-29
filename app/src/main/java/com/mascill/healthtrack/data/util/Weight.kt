@@ -1,11 +1,6 @@
-package com.mascill.healthtrack.data.mapper
+package com.mascill.healthtrack.data.util
 
-import com.mascill.healthtrack.data.protocol.NativeProtocol
-import com.mascill.healthtrack.data.util.bytesToInt
-import com.mascill.healthtrack.data.util.f32
-import com.mascill.healthtrack.data.util.javaFloatText
-import com.mascill.healthtrack.data.util.roundHalfUp
-import com.mascill.healthtrack.data.util.Constants
+import com.mascill.healthtrack.data.datasource.NativeProtocol
 
 /**
  * Extract unit name from property byte.
@@ -42,15 +37,6 @@ internal fun digitPlaces(prop: Int, cloud: Boolean, cloudV4: Boolean): Int {
         "01" -> 0
         "10" -> 2
         else -> 1
-    }
-}
-
-internal fun bits(value: Int): String {
-    val byte = value and 0xFF
-    return buildString(8) {
-        for (shift in 7 downTo 0) {
-            append((byte shr shift) and 1)
-        }
     }
 }
 

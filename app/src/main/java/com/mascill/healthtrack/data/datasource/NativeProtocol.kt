@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.data.protocol
+package com.mascill.healthtrack.data.datasource
 
 internal object NativeProtocol {
     val isLoaded: Boolean = try {

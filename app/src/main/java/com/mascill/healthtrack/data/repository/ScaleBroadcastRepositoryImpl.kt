@@ -1,17 +1,111 @@
-package com.mascill.healthtrack.data.protocol
+package com.mascill.healthtrack.data.repository
 
-import com.mascill.healthtrack.data.mapper.bits
-import com.mascill.healthtrack.data.mapper.digitPlaces
-import com.mascill.healthtrack.data.mapper.scaleText
-import com.mascill.healthtrack.data.mapper.unit
-import com.mascill.healthtrack.data.mapper.unitNameFromCode
+import com.mascill.healthtrack.data.datasource.NativeProtocol
 import com.mascill.healthtrack.data.util.BrIdx
+import com.mascill.healthtrack.data.util.bits
 import com.mascill.healthtrack.data.util.bytesToInt
+import com.mascill.healthtrack.data.util.digitPlaces
 import com.mascill.healthtrack.data.util.f32
+import com.mascill.healthtrack.data.util.mapWeight
+import com.mascill.healthtrack.data.util.scaleText
 import com.mascill.healthtrack.data.util.u8
+import com.mascill.healthtrack.data.util.unit
+import com.mascill.healthtrack.data.util.unitNameFromCode
 import com.mascill.healthtrack.domain.model.EncryptedBroadcastError
 import com.mascill.healthtrack.domain.model.FrameFormatError
 import com.mascill.healthtrack.domain.model.ScaleBroadcast
+import com.mascill.healthtrack.domain.repository.ScaleBroadcastRepository
+import javax.inject.Inject
+
+class ScaleBroadcastRepositoryImpl @Inject constructor() : ScaleBroadcastRepository {
+    override fun scalePayload(record: ByteArray): ByteArray? = readScalePayload(record)
+
+    /**
+     * Rebuild a 16-bit little-endian manufacturer id plus the remaining payload.
+     * A `companyId` outside 0..65535 follows `int.to_bytes(2, "little")` and is rejected.
+     */
+    override fun payloadFromManufacturer(companyId: Int, remainder: ByteArray): ByteArray? {
+        if (NativeProtocol.isLoaded) {
+            return NativeProtocol.nativePayloadFromManufacturer(companyId, remainder)
+        }
+        return ktPayloadFromManufacturer(companyId, remainder)
+    }
+
+    override fun parseBroadcast(frame: ByteArray, mac: String): ScaleBroadcast {
+        if (NativeProtocol.isLoaded) {
+            return nativeParseBroadcast(frame, mac)
+        }
+        return ktParseBroadcast(frame, mac)
+    }
+}
+
+/**
+ * Parse weight bytes from a protocol frame.
+ *
+ * @param high High byte of weight
+ * @param low Low byte of weight
+ * @param prop Property byte containing unit and decimal info
+ * @param cloud True if cloud protocol format
+ * @param cloudV4 True if cloud V4 format
+ * @return Pair of (weightKg as Float, scaleText)
+ */
+private fun parseWeight(
+    high: Int,
+    low: Int,
+    prop: Int,
+    cloud: Boolean = false,
+    cloudV4: Boolean = false,
+): Pair<Float, String> = mapWeight(high, low, prop, cloud, cloudV4)
+
+private val scaleHeaders = intArrayOf(0xCA, 0xC0)
+
+/**
+ * First manufacturer payload that starts with `0xCA` or `0xC0`.
+ * `record` is a raw scan record: length, type, then data.
+ */
+private fun readScalePayload(record: ByteArray): ByteArray? {
+    if (NativeProtocol.isLoaded) {
+        return NativeProtocol.nativeScalePayload(record)
+    }
+    return ktScalePayload(record)
+}
+
+/* ── Kotlin fallback (host JUnit) ── */
+
+private fun ktScalePayload(record: ByteArray): ByteArray? {
+    var index = 0
+    while (index < record.size) {
+        val length = record.u8(index)
+        index += 1
+        if (length == 0 || index + length > record.size) {
+            return null
+        }
+        val block = record.copyOfRange(index, index + length)
+        index += length
+        if (block.isEmpty() || block.u8(0) != 0xFF || block.size < 2) {
+            continue
+        }
+        val payload = block.copyOfRange(1, block.size)
+        if (payload.u8(0) in scaleHeaders) {
+            return payload
+        }
+    }
+    return null
+}
+
+private fun ktPayloadFromManufacturer(companyId: Int, remainder: ByteArray): ByteArray? {
+    if (companyId !in 0..0xFFFF) {
+        throw IllegalArgumentException("manufacturer id does not fit in 16 bits")
+    }
+    val payload = byteArrayOf(
+        (companyId and 0xFF).toByte(),
+        ((companyId ushr 8) and 0xFF).toByte(),
+    ) + remainder
+    if (payload.u8(0) in scaleHeaders) {
+        return payload
+    }
+    return null
+}
 
 private fun lockBit(prop: Int): Boolean = bits(prop)[7] == '1'
 
@@ -228,7 +322,9 @@ private fun parseFf(frame: ByteArray, mac: String): ScaleBroadcast {
     val version = frame.u8(2)
     var prop = frame.u8(3)
     var product = bytesToInt(frame.copyOfRange(6, 10))
-    if (frame.copyOfRange(6, 10).contentEquals(byteArrayOf(0xFA.toByte(), 0xFB.toByte(), 0xFC.toByte(), 0xFD.toByte()))) {
+    if (frame.copyOfRange(6, 10)
+            .contentEquals(byteArrayOf(0xFA.toByte(), 0xFB.toByte(), 0xFC.toByte(), 0xFD.toByte()))
+    ) {
         product = 997264800
         prop = 4
     } else if (product == 1104000001) {
@@ -256,13 +352,6 @@ private fun parseFf(frame: ByteArray, mac: String): ScaleBroadcast {
         seq = 0,
         locked = false,
     )
-}
-
-fun parseBroadcast(frame: ByteArray, mac: String = ""): ScaleBroadcast {
-    if (NativeProtocol.isLoaded) {
-        return nativeParseBroadcast(frame, mac)
-    }
-    return ktParseBroadcast(frame, mac)
 }
 
 private fun nativeParseBroadcast(frame: ByteArray, mac: String): ScaleBroadcast {

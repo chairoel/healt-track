@@ -1,7 +1,10 @@
 package com.mascill.healthtrack.data.mapper
 
 import com.mascill.healthtrack.data.model.RawBroadcast
+import com.mascill.healthtrack.data.util.digitPlaces
 import com.mascill.healthtrack.data.util.f32
+import com.mascill.healthtrack.data.util.mapWeight
+import com.mascill.healthtrack.data.util.unit
 import com.mascill.healthtrack.domain.model.ScaleBroadcast
 
 /**

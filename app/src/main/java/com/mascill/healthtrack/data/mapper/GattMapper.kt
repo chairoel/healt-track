@@ -2,6 +2,7 @@ package com.mascill.healthtrack.data.mapper
 
 import com.mascill.healthtrack.data.model.RawGattConfirmation
 import com.mascill.healthtrack.data.model.RawGattMeasurement
+import com.mascill.healthtrack.data.util.weightKilograms
 import com.mascill.healthtrack.domain.model.GattConfirmation
 import com.mascill.healthtrack.domain.model.ScaleGatt
 import java.time.Instant

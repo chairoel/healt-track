@@ -3,7 +3,7 @@
 #include <string.h>
 #include "scale_protocol.h"
 
-#define JNI_PKG Java_com_mascill_healthtrack_data_protocol_NativeProtocol_
+#define JNI_PKG Java_com_mascill_healthtrack_data_datasource_NativeProtocol_
 
 /* Helper to get bytes from jbyteArray */
 static uint8_t *get_bytes(JNIEnv *env, jbyteArray arr, int *len) {
@@ -22,7 +22,7 @@ static void release_bytes(JNIEnv *env, jbyteArray arr, uint8_t *buf) {
  * ════════════════════════════════════════════════════════════ */
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeScalePayload(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeScalePayload(
         JNIEnv *env, jclass cls, jbyteArray record) {
     int len;
     uint8_t *buf = get_bytes(env, record, &len);
@@ -42,7 +42,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeScalePayload(
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativePayloadFromManufacturer(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativePayloadFromManufacturer(
         JNIEnv *env, jclass cls, jint companyId, jbyteArray remainder) {
     if (companyId < 0 || companyId > 0xFFFF) {
         jclass ex = (*env)->FindClass(env, "java/lang/IllegalArgumentException");
@@ -79,7 +79,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativePayloadFromManuf
  * ════════════════════════════════════════════════════════════ */
 
 JNIEXPORT jdoubleArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeWeightKilograms(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeWeightKilograms(
         JNIEnv *env, jclass cls,
         jint high, jint low, jint prop, jboolean cloud, jboolean cloudV4) {
     sp_weight_t w;
@@ -101,7 +101,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeWeightKilograms(
 #define BR_SIZE 18
 
 JNIEXPORT jdoubleArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseBroadcast(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeParseBroadcast(
         JNIEnv *env, jclass cls, jbyteArray frame) {
     int len;
     uint8_t *buf = get_bytes(env, frame, &len);
@@ -170,7 +170,7 @@ static jdoubleArray pack_gatt(JNIEnv *env, const sp_gatt_t *g) {
 }
 
 JNIEXPORT jdoubleArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattV16(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeParseGattV16(
         JNIEnv *env, jclass cls, jbyteArray frame) {
     int len;
     uint8_t *buf = get_bytes(env, frame, &len);
@@ -181,7 +181,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattV16(
 }
 
 JNIEXPORT jdoubleArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattV17Weight(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeParseGattV17Weight(
         JNIEnv *env, jclass cls, jbyteArray frame, jint command) {
     int len;
     uint8_t *buf = get_bytes(env, frame, &len);
@@ -192,7 +192,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattV17Weig
 }
 
 JNIEXPORT jdoubleArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattAssembled(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeParseGattAssembled(
         JNIEnv *env, jclass cls, jbyteArray body, jint command) {
     int len;
     uint8_t *buf = get_bytes(env, body, &len);
@@ -203,7 +203,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattAssembl
 }
 
 JNIEXPORT jdoubleArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattRoles(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeParseGattRoles(
         JNIEnv *env, jclass cls, jbyteArray body) {
     int len;
     uint8_t *buf = get_bytes(env, body, &len);
@@ -238,7 +238,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeParseGattRoles(
  * ════════════════════════════════════════════════════════════ */
 
 JNIEXPORT jintArray JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeSplitPack(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeSplitPack(
         JNIEnv *env, jclass cls, jint raw) {
     int total, number;
     sp_split_pack(raw, &total, &number);
@@ -249,7 +249,7 @@ Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeSplitPack(
 }
 
 JNIEXPORT jint JNICALL
-Java_com_mascill_healthtrack_data_protocol_NativeProtocol_nativeJavaByte(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeJavaByte(
         JNIEnv *env, jclass cls, jint value) {
     return sp_java_byte(value);
 }

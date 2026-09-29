@@ -1,5 +1,6 @@
 package com.mascill.healthtrack.data.protocol
 
+import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
 import com.mascill.healthtrack.domain.model.FrameFormatError
 import com.mascill.healthtrack.domain.model.GattConfirmation
 import com.mascill.healthtrack.domain.model.IncompleteGatt
@@ -79,7 +80,7 @@ private fun v17(command: Int, prop: Int, weight: Pair<Int, Int> = 0x02 to 0xC1):
 class GattV16Test {
     @Test
     fun lockedStoresPacketValues() {
-        val parsed = parseGatt(v16(propGatt())) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(v16(propGatt())) as ScaleGatt
         assertEquals(16, parsed.version)
         assertNull(parsed.command)
         assertEquals(1, parsed.lockFlag)
@@ -100,14 +101,14 @@ class GattV16Test {
 
     @Test
     fun muscleNotRecalculatedFromWeight() {
-        val parsed = parseGatt(v16(propGatt(), muscle = 400)) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(v16(propGatt(), muscle = 400)) as ScaleGatt
         assertEquals(40.0, parsed.muscle, 0.0)
         assertNotEquals((40.0 / parsed.weightKg) * 100.0, parsed.muscle, 0.0)
     }
 
     @Test
     fun unlockedWeightOnly() {
-        val parsed = parseGatt(v16(propGatt(lock = 0))) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(v16(propGatt(lock = 0))) as ScaleGatt
         assertEquals(70.5, parsed.weightKg, 0.0)
         assertEquals(0, parsed.lockFlag)
         assertEquals(0.0, parsed.axunge, 0.0)
@@ -123,7 +124,7 @@ class GattV16Test {
     fun lockedWithoutCompositionBytes() {
         val prop = propGatt()
         val frame = byteArrayOf(0xCA.toByte(), 16, 0, 0, prop.toByte(), 0x02, 0xC1.toByte())
-        val parsed = parseGatt(frame) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(frame) as ScaleGatt
         assertEquals(70.5, parsed.weightKg, 0.0)
         assertEquals(0.0, parsed.axunge, 0.0)
         assertEquals(0.0, parsed.oriVisceralFat, 0.0)
@@ -168,7 +169,7 @@ class GattV16Test {
                 "bone" -> v16(propGatt(), bone = raw)
                 else -> error(field)
             }
-            val parsed = parseGatt(frame) as ScaleGatt
+            val parsed = ScaleGattRepositoryImpl().parseGatt(frame) as ScaleGatt
             val actual = when (attr) {
                 "axunge" -> parsed.axunge
                 "water" -> parsed.water
@@ -184,7 +185,7 @@ class GattV16Test {
 
     @Test
     fun rawVisceralFatKept() {
-        val parsed = parseGatt(v16(propGatt(), visceral = 25600)) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(v16(propGatt(), visceral = 25600)) as ScaleGatt
         assertEquals(0.0, parsed.visceralFat, 0.0)
         assertEquals(25600.0, parsed.oriVisceralFat, 0.0)
     }
@@ -193,7 +194,7 @@ class GattV16Test {
 class GattV17Test {
     @Test
     fun command1WeightWithoutComposition() {
-        val parsed = parseGatt(v17(1, propGatt(lock = 0))) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(v17(1, propGatt(lock = 0))) as ScaleGatt
         assertEquals(17, parsed.version)
         assertEquals(1, parsed.command)
         assertEquals(1, parsed.lockFlag)
@@ -206,7 +207,7 @@ class GattV17Test {
 
     @Test
     fun command0StillReadsWeight() {
-        val parsed = parseGatt(v17(0, propGatt(lock = 1, unit = "jin"), 0x00 to 0x8C)) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(v17(0, propGatt(lock = 1, unit = "jin"), 0x00 to 0x8C)) as ScaleGatt
         assertEquals(0, parsed.command)
         assertEquals(0, parsed.lockFlag)
         assertEquals(7.0, parsed.weightKg, 0.0)
@@ -216,7 +217,7 @@ class GattV17Test {
 
     @Test
     fun propertyAtOffset11() {
-        val parsed = parseGatt(v17(1, propGatt(unit = "jin"), 0x00 to 0x8C)) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(v17(1, propGatt(unit = "jin"), 0x00 to 0x8C)) as ScaleGatt
         assertEquals(7.0, parsed.weightKg, 0.0)
         assertEquals("14.0", parsed.scaleWeight)
     }
@@ -226,36 +227,36 @@ class GattRejectedTest {
     @Test
     fun invalidFormat() {
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(byteArrayOf())
+            ScaleGattRepositoryImpl().parseGatt(byteArrayOf())
         }
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(byteArrayOf(0xC0.toByte(), 16, 0, 0, 1, 2, 3))
+            ScaleGattRepositoryImpl().parseGatt(byteArrayOf(0xC0.toByte(), 16, 0, 0, 1, 2, 3))
         }
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(byteArrayOf(0xCA.toByte(), 16, 0, 0, 1, 2))
+            ScaleGattRepositoryImpl().parseGatt(byteArrayOf(0xCA.toByte(), 16, 0, 0, 1, 2))
         }
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(byteArrayOf(0xCA.toByte(), 17, 0, 1, 0, 2, 0xC1.toByte(), 0, 0, 0, 0))
+            ScaleGattRepositoryImpl().parseGatt(byteArrayOf(0xCA.toByte(), 17, 0, 1, 0, 2, 0xC1.toByte(), 0, 0, 0, 0))
         }
     }
 
     @Test
     fun outsideScope() {
         assertThrows(UnsupportedGatt::class.java) {
-            parseGatt(byteArrayOf(0xCA.toByte(), 32, 0))
+            ScaleGattRepositoryImpl().parseGatt(byteArrayOf(0xCA.toByte(), 32, 0))
         }
         assertThrows(UnsupportedGatt::class.java) {
-            parseGatt(v17(21, propGatt()))
+            ScaleGattRepositoryImpl().parseGatt(v17(21, propGatt()))
         }
     }
 
     @Test
     fun invalidCommand18Payload() {
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(v17(18, propGatt()))
+            ScaleGattRepositoryImpl().parseGatt(v17(18, propGatt()))
         }
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(v17(19, propGatt()))
+            ScaleGattRepositoryImpl().parseGatt(v17(19, propGatt()))
         }
     }
 }
@@ -321,7 +322,7 @@ class GattAssemblyTest {
     @Test
     fun command18SinglePacket() {
         val payload = body(propGatt(lock = 0), muscle = 100)
-        val parsed = parseGatt(packets(18, payload, intArrayOf(payload.size))[0]) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(packets(18, payload, intArrayOf(payload.size))[0]) as ScaleGatt
         assertEquals(18, parsed.command)
         assertEquals(1, parsed.lockFlag)
         assertFalse(parsed.history)
@@ -340,19 +341,19 @@ class GattAssemblyTest {
 
     @Test
     fun muscleKeptWhenPercentNotBelow50() {
-        val parsed = parseGatt(packets(18, body(propGatt(lock = 0), muscle = 400), intArrayOf(23))[0]) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(packets(18, body(propGatt(lock = 0), muscle = 400), intArrayOf(23))[0]) as ScaleGatt
         assertEquals(40.0, parsed.muscle, 0.0)
     }
 
     @Test
     fun muscleCappedAt50() {
-        val parsed = parseGatt(packets(18, body(propGatt(lock = 0), muscle = 600), intArrayOf(23))[0]) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(packets(18, body(propGatt(lock = 0), muscle = 600), intArrayOf(23))[0]) as ScaleGatt
         assertEquals(50.0, parsed.muscle, 0.0)
     }
 
     @Test
     fun muscleTruncatedToTenths() {
-        val parsed = parseGatt(
+        val parsed = ScaleGattRepositoryImpl().parseGatt(
             packets(18, body(propGatt(lock = 0), 0x02 to 0xC1, muscle = 200), intArrayOf(23))[0],
         ) as ScaleGatt
         assertEquals(70.5, parsed.weightKg, 0.0)
@@ -363,7 +364,7 @@ class GattAssemblyTest {
     fun command19TwoPackets() {
         val payload = body(propGatt(lock = 0), muscle = 100, visceral = 25600)
         val frames = packets(19, payload, intArrayOf(14, 9))
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertNull(parser.parse(frames[0]))
         val parsed = parser.parse(frames[1]) as ScaleGatt
         assertEquals(19, parsed.command)
@@ -379,7 +380,7 @@ class GattAssemblyTest {
     @Test
     fun lastPacketFirstClearsBuffer() {
         val frames = packets(18, body(propGatt(lock = 0)), intArrayOf(14, 9))
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertNull(parser.parse(frames[1]))
         assertNull(parser.parse(frames[0]))
         val parsed = parser.parse(frames[1]) as ScaleGatt
@@ -390,7 +391,7 @@ class GattAssemblyTest {
     fun packet1RestartsAssembly() {
         val firstAssembly = packets(18, body(propGatt(lock = 0), role = 1), intArrayOf(14, 9))
         val secondAssembly = packets(18, body(propGatt(lock = 0), role = 2), intArrayOf(14, 9))
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertNull(parser.parse(firstAssembly[0]))
         assertNull(parser.parse(secondAssembly[0]))
         val parsed = parser.parse(secondAssembly[1]) as ScaleGatt
@@ -401,7 +402,7 @@ class GattAssemblyTest {
     fun liveAndHistoryBuffersStaySeparate() {
         val liveFrame = packets(18, body(propGatt(lock = 0), role = 7), intArrayOf(23))[0]
         val historyFrames = packets(19, body(propGatt(lock = 0), role = 9), intArrayOf(14, 9))
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertNull(parser.parse(historyFrames[0]))
         val parsedLive = parser.parse(liveFrame) as ScaleGatt
         assertEquals(7, parsedLive.roleId)
@@ -413,7 +414,7 @@ class GattAssemblyTest {
 
     @Test
     fun nonFirstPacketRejectedAfterComplete() {
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         parser.parse(packets(18, body(propGatt(lock = 0)), intArrayOf(23))[0])
         val stray = packets(18, body(propGatt(lock = 0)), intArrayOf(14, 9))[1]
         assertThrows(FrameFormatError::class.java) {
@@ -425,16 +426,16 @@ class GattAssemblyTest {
     fun nibble8DoesNotComplete() {
         val payload = body(propGatt(lock = 0))
         val frame = byteArrayOf(0xCA.toByte(), 17, (payload.size + 2).toByte(), 18, 0x18) + payload
-        assertNull(GattParser().parse(frame))
+        assertNull(ScaleGattRepositoryImpl().parse(frame))
         assertThrows(IncompleteGatt::class.java) {
-            parseGatt(frame)
+            ScaleGattRepositoryImpl().parseGatt(frame)
         }
     }
 
     @Test
     fun roleIdAndTimeAboveInt() {
         val payload = body(propGatt(lock = 0), role = 0x80000000, whenEpoch = 0x80000000)
-        val parsed = parseGatt(packets(19, payload, intArrayOf(23))[0]) as ScaleGatt
+        val parsed = ScaleGattRepositoryImpl().parseGatt(packets(19, payload, intArrayOf(23))[0]) as ScaleGatt
         assertEquals(0, parsed.roleId)
         assertEquals(Instant.ofEpochSecond(0), parsed.weighingDate)
     }
@@ -443,7 +444,7 @@ class GattAssemblyTest {
     fun shortAssembly() {
         val frame = byteArrayOf(0xCA.toByte(), 17, 6, 18, 0x11, 1, 2, 3, 4)
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(frame)
+            ScaleGattRepositoryImpl().parseGatt(frame)
         }
     }
 }
@@ -469,7 +470,7 @@ class GattRoleTest {
             0x00,
             0x02,
         )
-        val parsed = parseGatt(roleFrame(0x11, payload)) as GattConfirmation
+        val parsed = ScaleGattRepositoryImpl().parseGatt(roleFrame(0x11, payload)) as GattConfirmation
         assertEquals(17, parsed.version)
         assertEquals(20, parsed.command)
         assertEquals(prop, parsed.property)
@@ -483,7 +484,7 @@ class GattRoleTest {
         val prop = propGatt(unit = "jin")
         val payload = byteArrayOf(0x00, 0x8C.toByte(), prop.toByte()) + toBytesBig(7, 4) + toBytesBig(9, 4)
         val frames = packets(20, payload, intArrayOf(7, 4))
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertNull(parser.parse(frames[0]))
         val parsed = parser.parse(frames[1]) as GattConfirmation
         assertEquals(7.0, parsed.weightKg, 0.0)
@@ -494,7 +495,7 @@ class GattRoleTest {
     @Test
     fun packet1DoesNotClearBuffer() {
         val prop = propGatt()
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertNull(parser.parse(roleFrame(0x12, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 1))))
         val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0, 0, 0, 2))) as GattConfirmation
         assertEquals(listOf(1, 2), parsed.matchedRoles)
@@ -504,7 +505,7 @@ class GattRoleTest {
     @Test
     fun lastPacketFirstStillCompletes() {
         val prop = propGatt()
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         val parsed = parser.parse(roleFrame(0x22, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 4))) as GattConfirmation
         assertEquals(listOf(4), parsed.matchedRoles)
     }
@@ -514,7 +515,7 @@ class GattRoleTest {
         val prop = propGatt()
         val payload = byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 3)
         for (index in intArrayOf(0x00, 0x88)) {
-            val parsed = parseGatt(roleFrame(index, payload)) as GattConfirmation
+            val parsed = ScaleGattRepositoryImpl().parseGatt(roleFrame(index, payload)) as GattConfirmation
             assertEquals("index $index", listOf(3), parsed.matchedRoles)
         }
     }
@@ -524,21 +525,21 @@ class GattRoleTest {
         val prop = propGatt()
         var payload = byteArrayOf(0x02, 0xC1.toByte(), prop.toByte()) + toBytesBig(0x7FFFFFFF, 4)
         payload += toBytesBig(0x80000000, 4) + byteArrayOf(1, 2, 3)
-        val parsed = parseGatt(roleFrame(0x11, payload)) as GattConfirmation
+        val parsed = ScaleGattRepositoryImpl().parseGatt(roleFrame(0x11, payload)) as GattConfirmation
         assertEquals(listOf(0x7FFFFFFF, 0, 0), parsed.matchedRoles)
     }
 
     @Test
     fun withoutRoleId() {
         val prop = propGatt()
-        val parsed = parseGatt(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte()))) as GattConfirmation
+        val parsed = ScaleGattRepositoryImpl().parseGatt(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte()))) as GattConfirmation
         assertEquals(emptyList<Int>(), parsed.matchedRoles)
     }
 
     @Test
     fun shortAssemblyLeavesBuffer() {
         val prop = propGatt()
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertThrows(FrameFormatError::class.java) {
             parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte())))
         }
@@ -550,7 +551,7 @@ class GattRoleTest {
     @Test
     fun shortFrameDoesNotEnterBuffer() {
         val prop = propGatt()
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertThrows(FrameFormatError::class.java) {
             parser.parse(byteArrayOf(0xCA.toByte(), 17, 10, 20, 0x12, 1, 2))
         }
@@ -561,7 +562,7 @@ class GattRoleTest {
     @Test
     fun roleBufferSeparateFromMeasurement() {
         val prop = propGatt()
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         assertNull(parser.parse(roleFrame(0x12, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 8))))
         val liveResult = parser.parse(packets(18, body(propGatt(lock = 0), role = 7), intArrayOf(23))[0]) as ScaleGatt
         assertEquals(7, liveResult.roleId)
@@ -572,7 +573,7 @@ class GattRoleTest {
     @Test
     fun bufferEmptyAfterComplete() {
         val prop = propGatt()
-        val parser = GattParser()
+        val parser = ScaleGattRepositoryImpl()
         parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 1)))
         val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 2))) as GattConfirmation
         assertEquals(listOf(2), parsed.matchedRoles)
@@ -581,7 +582,7 @@ class GattRoleTest {
     @Test
     fun zeroLengthOnEmptyBuffer() {
         assertThrows(FrameFormatError::class.java) {
-            parseGatt(byteArrayOf(0xCA.toByte(), 17, 0, 20, 0x11))
+            ScaleGattRepositoryImpl().parseGatt(byteArrayOf(0xCA.toByte(), 17, 0, 20, 0x11))
         }
     }
 }

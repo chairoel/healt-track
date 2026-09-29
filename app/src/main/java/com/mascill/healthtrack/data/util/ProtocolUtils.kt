@@ -21,6 +21,15 @@ fun bytesToInt(raw: ByteArray): Int {
     return value
 }
 
+internal fun bits(value: Int): String {
+    val byte = value and 0xFF
+    return buildString(8) {
+        for (shift in 7 downTo 0) {
+            append((byte shr shift) and 1)
+        }
+    }
+}
+
 // ── Float32 emulation ──
 
 fun f32(value: Double): Double = value.toFloat().toDouble()

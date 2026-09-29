@@ -1,6 +1,7 @@
-package com.mascill.healthtrack.data.protocol
+package com.mascill.healthtrack.data.repository
 
-import com.mascill.healthtrack.data.mapper.weightKilograms
+import com.mascill.healthtrack.data.datasource.NativeProtocol
+import com.mascill.healthtrack.data.util.weightKilograms
 import com.mascill.healthtrack.data.util.GIdx
 import com.mascill.healthtrack.data.util.RIdx
 import com.mascill.healthtrack.data.util.u8
@@ -10,7 +11,17 @@ import com.mascill.healthtrack.domain.model.GattResult
 import com.mascill.healthtrack.domain.model.IncompleteGatt
 import com.mascill.healthtrack.domain.model.ScaleGatt
 import com.mascill.healthtrack.domain.model.UnsupportedGatt
+import com.mascill.healthtrack.domain.repository.ScaleGattRepository
 import java.time.Instant
+import javax.inject.Inject
+
+class ScaleGattRepositoryImpl @Inject constructor() : ScaleGattRepository {
+    private val parser = GattParser()
+
+    override fun parseGatt(frame: ByteArray): GattResult = readGatt(frame)
+
+    override fun parse(frame: ByteArray): GattResult? = parser.parse(frame)
+}
 
 private fun need(frame: ByteArray, size: Int) {
     if (frame.size < size) {
@@ -401,7 +412,7 @@ private fun ktParseV17Weight(frame: ByteArray, command: Int): ScaleGatt {
     )
 }
 
-class GattParser {
+private class GattParser {
     private var live: MutableMap<Int, ByteArray>? = mutableMapOf()
     private var history: MutableMap<Int, ByteArray>? = mutableMapOf()
     private var roles: ByteArray? = byteArrayOf()
@@ -497,7 +508,7 @@ class GattParser {
     }
 }
 
-fun parseGatt(frame: ByteArray): GattResult {
+private fun readGatt(frame: ByteArray): GattResult {
     val parsed = GattParser().parse(frame) ?: throw IncompleteGatt("GATT packet is incomplete")
     return parsed
 }
