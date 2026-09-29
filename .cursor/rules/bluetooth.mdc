@@ -1,6 +1,6 @@
 ---
 description: Bluetooth HealthTrack untuk satu sesi ukur OKOK, pemindaian dan GATT
-globs: ["HealthTrack/**/ble/**/*.kt", "HealthTrack/**/protokol/**/*.kt"]
+globs: ["HealthTrack/**/ble/**/*.kt", "HealthTrack/**/protocol/**/*.kt"]
 alwaysApply: false
 ---
 
