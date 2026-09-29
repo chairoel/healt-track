@@ -11,7 +11,7 @@ open class FrameFormatError(message: String) : IllegalArgumentException(message)
 
 class EncryptedBroadcastError(message: String) : FrameFormatError(message)
 
-data class OkokBroadcast(
+data class ScaleBroadcast(
     val header: Int,
     val version: Int,
     val mac: String,
@@ -190,8 +190,8 @@ private fun fromWeight(
     productId: Int,
     seq: Int,
     locked: Boolean,
-): OkokBroadcast {
-    return OkokBroadcast(
+): ScaleBroadcast {
+    return ScaleBroadcast(
         header = frame.u8(0),
         version = version,
         mac = mac,
@@ -207,7 +207,7 @@ private fun fromWeight(
     )
 }
 
-private fun parseCa(frame: ByteArray, mac: String): OkokBroadcast {
+private fun parseCa(frame: ByteArray, mac: String): ScaleBroadcast {
     need(frame, 2)
     if (frame.u8(1) == 32) {
         return parseCaV20(frame, mac)
@@ -215,7 +215,7 @@ private fun parseCa(frame: ByteArray, mac: String): OkokBroadcast {
     return parseCaLegacy(frame, mac)
 }
 
-private fun parseCaLegacy(frame: ByteArray, mac: String): OkokBroadcast {
+private fun parseCaLegacy(frame: ByteArray, mac: String): ScaleBroadcast {
     need(frame, 5)
     val version = frame.u8(1)
     var deviceType = 0
@@ -298,7 +298,7 @@ private fun parseCaLegacy(frame: ByteArray, mac: String): OkokBroadcast {
     )
 }
 
-private fun parseCaV20(frame: ByteArray, mac: String): OkokBroadcast {
+private fun parseCaV20(frame: ByteArray, mac: String): ScaleBroadcast {
     need(frame, 14)
     val prop = frame.u8(8)
     val locked = lockBit(prop)
@@ -335,7 +335,7 @@ private fun parseCaV20(frame: ByteArray, mac: String): OkokBroadcast {
     )
 }
 
-private fun parseC0(frame: ByteArray, mac: String): OkokBroadcast {
+private fun parseC0(frame: ByteArray, mac: String): ScaleBroadcast {
     need(frame, 9)
     if (frame.u8(4) and 0x80 != 0) {
         throw EncryptedBroadcastError("encrypted 0xC0 broadcast is outside the first release")
@@ -358,7 +358,7 @@ private fun parseC0(frame: ByteArray, mac: String): OkokBroadcast {
     )
 }
 
-private fun parseFf(frame: ByteArray, mac: String): OkokBroadcast {
+private fun parseFf(frame: ByteArray, mac: String): ScaleBroadcast {
     need(frame, 10)
     val version = frame.u8(2)
     var prop = frame.u8(3)
@@ -393,7 +393,7 @@ private fun parseFf(frame: ByteArray, mac: String): OkokBroadcast {
     )
 }
 
-fun parseBroadcast(frame: ByteArray, mac: String = ""): OkokBroadcast {
+fun parseBroadcast(frame: ByteArray, mac: String = ""): ScaleBroadcast {
     if (frame.isEmpty()) {
         throw FrameFormatError("broadcast is empty")
     }

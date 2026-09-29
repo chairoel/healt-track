@@ -4,34 +4,34 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class OkokAdvertisementTest {
+class ScaleAdvertisementTest {
     @Test
     fun payloadAfterFlags() {
         val record = record(frame, byteArrayOf(0x02, 0x01, 0x06))
-        assertArrayEquals(frame, okokPayload(record))
+        assertArrayEquals(frame, scalePayload(record))
     }
 
     @Test
     fun uuidBeforeManufacturerStillTaken() {
         val record = record(frame, byteArrayOf(0x03, 0x02, 0xF0.toByte(), 0xFF.toByte()))
-        assertArrayEquals(frame, okokPayload(record))
+        assertArrayEquals(frame, scalePayload(record))
     }
 
     @Test
     fun otherManufacturerSkipped() {
         val other = byteArrayOf(0x04, 0xFF.toByte(), 0x01, 0x02, 0x03)
         val record = other + record(frame)
-        assertArrayEquals(frame, okokPayload(record))
+        assertArrayEquals(frame, scalePayload(record))
     }
 
     @Test
-    fun notOkok() {
-        assertNull(okokPayload(byteArrayOf(0x04, 0xFF.toByte(), 0x01, 0x02, 0x03)))
+    fun otherManufacturer() {
+        assertNull(scalePayload(byteArrayOf(0x04, 0xFF.toByte(), 0x01, 0x02, 0x03)))
     }
 
     @Test
     fun truncatedRecord() {
-        assertNull(okokPayload(byteArrayOf(0x05, 0xFF.toByte(), 0xC0.toByte())))
+        assertNull(scalePayload(byteArrayOf(0x05, 0xFF.toByte(), 0xC0.toByte())))
     }
 
     @Test

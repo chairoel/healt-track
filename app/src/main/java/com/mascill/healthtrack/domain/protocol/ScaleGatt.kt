@@ -17,7 +17,7 @@ data class GattConfirmation(
     val matchedRoles: List<Int>,
 ) : GattResult
 
-data class OkokGatt(
+data class ScaleGatt(
     val version: Int,
     val command: Int?,
     val lockFlag: Int,
@@ -190,9 +190,9 @@ private fun result(
     history: Boolean = false,
     roleId: Int = 0,
     weighingDate: Instant? = null,
-): OkokGatt {
+): ScaleGatt {
     val values = composition ?: Composition(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    return OkokGatt(
+    return ScaleGatt(
         version = version,
         command = command,
         lockFlag = lockFlag,
@@ -232,7 +232,7 @@ private fun concatPackets(store: Map<Int, ByteArray>): ByteArray {
     return joined
 }
 
-private fun parseAssembled(body: ByteArray, command: Int): OkokGatt {
+private fun parseAssembled(body: ByteArray, command: Int): ScaleGatt {
     if (body.size < 12) {
         throw FrameFormatError("assembled GATT is too short")
     }
@@ -268,7 +268,7 @@ private fun parseAssembled(body: ByteArray, command: Int): OkokGatt {
     )
 }
 
-private fun parseV16(frame: ByteArray): OkokGatt {
+private fun parseV16(frame: ByteArray): ScaleGatt {
     need(frame, 7)
     val prop = frame.u8(4)
     val lockFlag = prop and 1
@@ -307,7 +307,7 @@ private fun parseRoles(body: ByteArray): GattConfirmation {
     )
 }
 
-private fun parseV17Weight(frame: ByteArray, command: Int): OkokGatt {
+private fun parseV17Weight(frame: ByteArray, command: Int): ScaleGatt {
     need(frame, 12)
     val prop = frame.u8(11)
     val (kg, scaleWeight) = weightKilograms(frame.u8(5), frame.u8(6), prop, cloud = false)
@@ -356,7 +356,7 @@ class GattParser {
         throw UnsupportedGatt("GATT version 17 command is outside this parser")
     }
 
-    private fun absorb(frame: ByteArray, command: Int): OkokGatt? {
+    private fun absorb(frame: ByteArray, command: Int): ScaleGatt? {
         need(frame, 5)
         val payloadLen = javaByte(frame.u8(2)) - 2
         if (payloadLen < 0) {

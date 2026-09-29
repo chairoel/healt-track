@@ -1,12 +1,12 @@
 package com.mascill.healthtrack.domain.protocol
 
-private val okokHeaders = intArrayOf(0xCA, 0xC0)
+private val scaleHeaders = intArrayOf(0xCA, 0xC0)
 
 /**
  * First manufacturer payload that starts with `0xCA` or `0xC0`.
  * `record` is a raw scan record: length, type, then data.
  */
-fun okokPayload(record: ByteArray): ByteArray? {
+fun scalePayload(record: ByteArray): ByteArray? {
     var index = 0
     while (index < record.size) {
         val length = record.u8(index)
@@ -20,7 +20,7 @@ fun okokPayload(record: ByteArray): ByteArray? {
             continue
         }
         val payload = block.copyOfRange(1, block.size)
-        if (payload.u8(0) in okokHeaders) {
+        if (payload.u8(0) in scaleHeaders) {
             return payload
         }
     }
@@ -39,7 +39,7 @@ fun payloadFromManufacturer(companyId: Int, remainder: ByteArray): ByteArray? {
         (companyId and 0xFF).toByte(),
         ((companyId ushr 8) and 0xFF).toByte(),
     ) + remainder
-    if (payload.u8(0) in okokHeaders) {
+    if (payload.u8(0) in scaleHeaders) {
         return payload
     }
     return null

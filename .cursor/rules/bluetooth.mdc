@@ -1,5 +1,5 @@
 ---
-description: Bluetooth HealthTrack untuk satu sesi ukur OKOK, pemindaian dan GATT
+description: Bluetooth HealthTrack untuk satu sesi ukur timbangan, pemindaian dan GATT
 globs: ["HealthTrack/**/ble/**/*.kt", "HealthTrack/**/protocol/**/*.kt"]
 alwaysApply: false
 ---
@@ -10,7 +10,7 @@ API platform: `BluetoothLeScanner` dan `BluetoothGatt`. Urutan lengkap ada di `d
 
 - Muatan iklan diterima bila byte pertama `0xCA` atau `0xC0`. Company id 16-bit little-endian ditambah sisa byte pabrik.
 - Siaran `0xC0` dengan bit enkripsi (bit 7 pada byte offset 4) ditolak. Jangan memuat kunci enkripsi.
-- Alamat siaran OKOK pertama yang disimpan. Iklan lain diabaikan setelah alamat itu terpasang.
+- Alamat siaran timbangan pertama yang disimpan. Iklan lain diabaikan setelah alamat itu terpasang.
 - Impedansi laporan adalah ohm pada siaran terkunci. Satu nilai memakai v235. Sepuluh nilai memakai vA019. Jumlah lain menolak sesi.
 - Hentikan pemindaian, lalu `connectGatt(autoConnect = false)`. Jangan menjalankan pemindaian dan `connectGatt` bersamaan. Nyalakan pemindaian lagi setelah notify RX terpasang.
 - Sesi tidak menulis ke karakteristik TX.
