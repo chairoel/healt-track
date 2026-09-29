@@ -1,50 +1,16 @@
-package com.mascill.healthtrack.domain.protocol
+package com.mascill.healthtrack.data.protocol
 
+import com.mascill.healthtrack.data.mapper.weightKilograms
+import com.mascill.healthtrack.data.util.GIdx
+import com.mascill.healthtrack.data.util.RIdx
+import com.mascill.healthtrack.data.util.u8
+import com.mascill.healthtrack.domain.model.FrameFormatError
+import com.mascill.healthtrack.domain.model.GattConfirmation
+import com.mascill.healthtrack.domain.model.GattResult
+import com.mascill.healthtrack.domain.model.IncompleteGatt
+import com.mascill.healthtrack.domain.model.ScaleGatt
+import com.mascill.healthtrack.domain.model.UnsupportedGatt
 import java.time.Instant
-
-class UnsupportedGatt(message: String) : FrameFormatError(message)
-
-class IncompleteGatt(message: String) : Exception(message)
-
-sealed interface GattResult
-
-data class GattConfirmation(
-    val version: Int,
-    val command: Int,
-    val property: Int,
-    val weightKg: Double,
-    val scaleWeight: String,
-    val matchedRoles: List<Int>,
-) : GattResult
-
-data class ScaleGatt(
-    val version: Int,
-    val command: Int?,
-    val lockFlag: Int,
-    val property: Int,
-    val weightKg: Double,
-    val scaleWeight: String,
-    val history: Boolean,
-    val axunge: Double,
-    val water: Double,
-    val muscle: Double,
-    val bmr: Double,
-    val visceralFat: Double,
-    val oriVisceralFat: Double,
-    val bone: Double,
-    val roleId: Int = 0,
-    val weighingDate: Instant? = null,
-) : GattResult
-
-private data class Composition(
-    val axunge: Double,
-    val water: Double,
-    val muscle: Double,
-    val bmr: Double,
-    val visceral: Double,
-    val ori: Double,
-    val bone: Double,
-)
 
 private fun need(frame: ByteArray, size: Int) {
     if (frame.size < size) {
@@ -57,7 +23,7 @@ private fun javaByte(value: Int): Int {
     return if (unsigned >= 128) unsigned - 256 else unsigned
 }
 
-private fun bytesToInt(raw: ByteArray): Int {
+private fun bytesToIntSafe(raw: ByteArray): Int {
     if (raw.isEmpty()) {
         return 0
     }
@@ -75,7 +41,7 @@ private fun sliceInt(frame: ByteArray, start: Int, size: Int): Int {
     if (size <= 0 || frame.size < start + size) {
         return 0
     }
-    return bytesToInt(frame.copyOfRange(start, start + size))
+    return bytesToIntSafe(frame.copyOfRange(start, start + size))
 }
 
 private fun splitPack(raw: Int): Pair<Int, Int> {
@@ -166,6 +132,16 @@ private fun recalculateMuscle(muscle: Double, weightKg: Double): Double {
     return setMuscle(raw)
 }
 
+private data class Composition(
+    val axunge: Double,
+    val water: Double,
+    val muscle: Double,
+    val bmr: Double,
+    val visceral: Double,
+    val ori: Double,
+    val bone: Double,
+)
+
 private fun composition(frame: ByteArray): Composition {
     val (visceral, ori) = setVisceral(sliceInt(frame, 15, 2))
     return Composition(
@@ -212,6 +188,53 @@ private fun result(
     )
 }
 
+private fun gattFromNative(r: DoubleArray): ScaleGatt {
+    val wHigh = r[GIdx.W_HIGH].toInt()
+    val wLow = r[GIdx.W_LOW].toInt()
+    val prop = r[GIdx.PROPERTY].toInt()
+    val (_, scaleWeight) = weightKilograms(wHigh, wLow, prop, cloud = false)
+    return ScaleGatt(
+        version = r[GIdx.VERSION].toInt(),
+        command = if (r[GIdx.HAS_CMD].toInt() != 0) r[GIdx.COMMAND].toInt() else null,
+        lockFlag = r[GIdx.LOCK_FLAG].toInt(),
+        property = r[GIdx.PROPERTY].toInt(),
+        weightKg = r[GIdx.WEIGHT_KG],
+        scaleWeight = scaleWeight,
+        history = r[GIdx.HISTORY].toInt() != 0,
+        axunge = r[GIdx.AXUNGE],
+        water = r[GIdx.WATER],
+        muscle = r[GIdx.MUSCLE],
+        bmr = r[GIdx.BMR],
+        visceralFat = r[GIdx.VISCERAL],
+        oriVisceralFat = r[GIdx.ORI_VISCERAL],
+        bone = r[GIdx.BONE],
+        roleId = r[GIdx.ROLE_ID].toInt(),
+        weighingDate = if (r[GIdx.HAS_DATE].toInt() != 0) {
+            Instant.ofEpochSecond(r[GIdx.DATE_EPOCH].toLong())
+        } else null,
+    )
+}
+
+private fun rolesFromNative(r: DoubleArray): GattConfirmation {
+    val wHigh = r[RIdx.W_HIGH].toInt()
+    val wLow = r[RIdx.W_LOW].toInt()
+    val prop = r[RIdx.PROPERTY].toInt()
+    val (_, scaleWeight) = weightKilograms(wHigh, wLow, prop, cloud = false)
+    val roleCount = r[RIdx.ROLE_COUNT].toInt()
+    val roles = ArrayList<Int>(roleCount)
+    for (i in 0 until roleCount) {
+        roles.add(r[RIdx.ROLES_START + i].toInt())
+    }
+    return GattConfirmation(
+        version = r[RIdx.VERSION].toInt(),
+        command = r[RIdx.COMMAND].toInt(),
+        property = prop and 0xFF,
+        weightKg = storedWeight(r[RIdx.WEIGHT_KG]),
+        scaleWeight = scaleWeight,
+        matchedRoles = roles,
+    )
+}
+
 private fun concatPackets(store: Map<Int, ByteArray>): ByteArray {
     val parts = ArrayList<ByteArray>(store.size)
     for (index in 1..store.size) {
@@ -233,6 +256,20 @@ private fun concatPackets(store: Map<Int, ByteArray>): ByteArray {
 }
 
 private fun parseAssembled(body: ByteArray, command: Int): ScaleGatt {
+    if (NativeProtocol.isLoaded) {
+        return nativeParseAssembled(body, command)
+    }
+    return ktParseAssembled(body, command)
+}
+
+private fun nativeParseAssembled(body: ByteArray, command: Int): ScaleGatt {
+    val r = NativeProtocol.nativeParseGattAssembled(body, command)
+    val errorCode = r[GIdx.ERROR].toInt()
+    if (errorCode != 0) throw FrameFormatError("assembled GATT is too short")
+    return gattFromNative(r)
+}
+
+private fun ktParseAssembled(body: ByteArray, command: Int): ScaleGatt {
     if (body.size < 12) {
         throw FrameFormatError("assembled GATT is too short")
     }
@@ -269,6 +306,20 @@ private fun parseAssembled(body: ByteArray, command: Int): ScaleGatt {
 }
 
 private fun parseV16(frame: ByteArray): ScaleGatt {
+    if (NativeProtocol.isLoaded) {
+        return nativeParseV16(frame)
+    }
+    return ktParseV16(frame)
+}
+
+private fun nativeParseV16(frame: ByteArray): ScaleGatt {
+    val r = NativeProtocol.nativeParseGattV16(frame)
+    val errorCode = r[GIdx.ERROR].toInt()
+    if (errorCode != 0) throw FrameFormatError("GATT frame is too short")
+    return gattFromNative(r)
+}
+
+private fun ktParseV16(frame: ByteArray): ScaleGatt {
     need(frame, 7)
     val prop = frame.u8(4)
     val lockFlag = prop and 1
@@ -286,6 +337,20 @@ private fun parseV16(frame: ByteArray): ScaleGatt {
 }
 
 private fun parseRoles(body: ByteArray): GattConfirmation {
+    if (NativeProtocol.isLoaded) {
+        return nativeParseRoles(body)
+    }
+    return ktParseRoles(body)
+}
+
+private fun nativeParseRoles(body: ByteArray): GattConfirmation {
+    val r = NativeProtocol.nativeParseGattRoles(body)
+    val errorCode = r[RIdx.ERROR].toInt()
+    if (errorCode != 0) throw FrameFormatError("assembled GATT roles are too short")
+    return rolesFromNative(r)
+}
+
+private fun ktParseRoles(body: ByteArray): GattConfirmation {
     if (body.size < 3) {
         throw FrameFormatError("assembled GATT roles are too short")
     }
@@ -308,6 +373,20 @@ private fun parseRoles(body: ByteArray): GattConfirmation {
 }
 
 private fun parseV17Weight(frame: ByteArray, command: Int): ScaleGatt {
+    if (NativeProtocol.isLoaded) {
+        return nativeParseV17Weight(frame, command)
+    }
+    return ktParseV17Weight(frame, command)
+}
+
+private fun nativeParseV17Weight(frame: ByteArray, command: Int): ScaleGatt {
+    val r = NativeProtocol.nativeParseGattV17Weight(frame, command)
+    val errorCode = r[GIdx.ERROR].toInt()
+    if (errorCode != 0) throw FrameFormatError("GATT frame is too short")
+    return gattFromNative(r)
+}
+
+private fun ktParseV17Weight(frame: ByteArray, command: Int): ScaleGatt {
     need(frame, 12)
     val prop = frame.u8(11)
     val (kg, scaleWeight) = weightKilograms(frame.u8(5), frame.u8(6), prop, cloud = false)

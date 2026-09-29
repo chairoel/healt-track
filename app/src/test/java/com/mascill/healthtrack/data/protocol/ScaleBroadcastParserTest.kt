@@ -1,5 +1,7 @@
-package com.mascill.healthtrack.domain.protocol
+package com.mascill.healthtrack.data.protocol
 
+import com.mascill.healthtrack.domain.model.EncryptedBroadcastError
+import com.mascill.healthtrack.domain.model.FrameFormatError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

@@ -1,4 +1,6 @@
-package com.mascill.healthtrack.domain.protocol
+package com.mascill.healthtrack.data.protocol
+
+import com.mascill.healthtrack.data.util.u8
 
 private val scaleHeaders = intArrayOf(0xCA, 0xC0)
 
@@ -7,6 +9,26 @@ private val scaleHeaders = intArrayOf(0xCA, 0xC0)
  * `record` is a raw scan record: length, type, then data.
  */
 fun scalePayload(record: ByteArray): ByteArray? {
+    if (NativeProtocol.isLoaded) {
+        return NativeProtocol.nativeScalePayload(record)
+    }
+    return ktScalePayload(record)
+}
+
+/**
+ * Rebuild a 16-bit little-endian manufacturer id plus the remaining payload.
+ * A `companyId` outside 0..65535 follows `int.to_bytes(2, "little")` and is rejected.
+ */
+fun payloadFromManufacturer(companyId: Int, remainder: ByteArray): ByteArray? {
+    if (NativeProtocol.isLoaded) {
+        return NativeProtocol.nativePayloadFromManufacturer(companyId, remainder)
+    }
+    return ktPayloadFromManufacturer(companyId, remainder)
+}
+
+/* ── Kotlin fallback (host JUnit) ── */
+
+private fun ktScalePayload(record: ByteArray): ByteArray? {
     var index = 0
     while (index < record.size) {
         val length = record.u8(index)
@@ -27,11 +49,7 @@ fun scalePayload(record: ByteArray): ByteArray? {
     return null
 }
 
-/**
- * Rebuild a 16-bit little-endian manufacturer id plus the remaining payload.
- * A `companyId` outside 0..65535 follows `int.to_bytes(2, "little")` and is rejected.
- */
-fun payloadFromManufacturer(companyId: Int, remainder: ByteArray): ByteArray? {
+private fun ktPayloadFromManufacturer(companyId: Int, remainder: ByteArray): ByteArray? {
     if (companyId !in 0..0xFFFF) {
         throw IllegalArgumentException("manufacturer id does not fit in 16 bits")
     }

@@ -1,10 +1,11 @@
-package com.mascill.healthtrack.domain.protocol
+package com.mascill.healthtrack.data.protocol
 
+import com.mascill.healthtrack.data.util.u8
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-class ScaleAdvertisementTest {
+class ScaleAdvertisementParserTest {
     @Test
     fun payloadAfterFlags() {
         val record = record(frame, byteArrayOf(0x02, 0x01, 0x06))

@@ -1,158 +1,23 @@
-package com.mascill.healthtrack.domain.protocol
+package com.mascill.healthtrack.data.protocol
 
-import java.math.BigDecimal
-import java.math.RoundingMode
-
-internal fun Byte.u8(): Int = toInt() and 0xFF
-
-internal fun ByteArray.u8(index: Int): Int = this[index].u8()
-
-open class FrameFormatError(message: String) : IllegalArgumentException(message)
-
-class EncryptedBroadcastError(message: String) : FrameFormatError(message)
-
-data class ScaleBroadcast(
-    val header: Int,
-    val version: Int,
-    val mac: String,
-    val weightKg: Float,
-    val scaleWeight: String?,
-    val impedanceOhm: Float?,
-    val productId: Int,
-    val deviceType: Int,
-    val cmdId: Int,
-    val locked: Boolean,
-    val seq: Int,
-    val property: Int,
-)
-
-private val lbPerKg: Double = 0.4535924.toFloat().toDouble()
-
-private fun f32(value: Double): Double = value.toFloat().toDouble()
-
-private fun bits(value: Int): String {
-    val byte = value and 0xFF
-    return buildString(8) {
-        for (shift in 7 downTo 0) {
-            append((byte shr shift) and 1)
-        }
-    }
-}
-
-private fun bytesToInt(raw: ByteArray): Int {
-    if (raw.isEmpty()) {
-        return 0
-    }
-    var value = 0
-    for (byte in raw) {
-        value = (value shl 8) or byte.u8()
-    }
-    return value
-}
-
-private fun roundHalfUp(value: Double, places: Int, asFloat32: Boolean): Double {
-    val number = BigDecimal(value).setScale(places, RoundingMode.HALF_UP).toDouble()
-    return if (asFloat32) f32(number) else number
-}
-
-private fun unit(prop: Int): String {
-    return when (bits(prop).substring(3, 5)) {
-        "01" -> "jin"
-        "10" -> "lb"
-        "11" -> "st"
-        else -> "kg"
-    }
-}
-
-private fun digitPlaces(prop: Int, cloud: Boolean, cloudV4: Boolean): Int {
-    if (cloudV4) {
-        return when (bits(prop).substring(1, 3)) {
-            "01" -> 0
-            "10" -> 1
-            else -> 2
-        }
-    }
-    val pair = bits(prop).substring(5, 7)
-    if (cloud) {
-        return when (pair) {
-            "01" -> 0
-            "10" -> 1
-            else -> 2
-        }
-    }
-    return when (pair) {
-        "01" -> 0
-        "10" -> 2
-        else -> 1
-    }
-}
+import com.mascill.healthtrack.data.mapper.bits
+import com.mascill.healthtrack.data.mapper.digitPlaces
+import com.mascill.healthtrack.data.mapper.scaleText
+import com.mascill.healthtrack.data.mapper.unit
+import com.mascill.healthtrack.data.mapper.unitNameFromCode
+import com.mascill.healthtrack.data.util.BrIdx
+import com.mascill.healthtrack.data.util.bytesToInt
+import com.mascill.healthtrack.data.util.f32
+import com.mascill.healthtrack.data.util.u8
+import com.mascill.healthtrack.domain.model.EncryptedBroadcastError
+import com.mascill.healthtrack.domain.model.FrameFormatError
+import com.mascill.healthtrack.domain.model.ScaleBroadcast
 
 private fun lockBit(prop: Int): Boolean = bits(prop)[7] == '1'
 
 private fun deviceTypeV2(prop: Int): Int = if (bits(prop)[2] == '0') 0 else 2
 
 private fun div10(raw: Int): Double = f32(f32(raw.toDouble()) / f32(10.0))
-
-private fun javaFloatText(value: Double): String = java.lang.Float.toString(value.toFloat())
-
-private fun scaleText(high: Int, low: Int, scaled: Double, places: Int, unit: String): String {
-    if (unit == "st") {
-        val pounds = f32((low and 0xFF).toDouble() / 10.0)
-        return "${high and 0xFF}:${javaFloatText(pounds)}"
-    }
-    if (places == 0) {
-        return f32(scaled).toInt().toString()
-    }
-    val shown = roundHalfUp(scaled, places, asFloat32 = true)
-    return javaFloatText(shown)
-}
-
-internal fun weightKilograms(
-    high: Int,
-    low: Int,
-    prop: Int,
-    cloud: Boolean = false,
-    cloudV4: Boolean = false,
-): Pair<Double, String> {
-    val places = digitPlaces(prop, cloud = cloud, cloudV4 = cloudV4)
-    val raw = bytesToInt(byteArrayOf((high and 0xFF).toByte(), (low and 0xFF).toByte()))
-    var scaled = when (places) {
-        0 -> f32(raw.toDouble())
-        1 -> f32(f32(raw.toDouble()) / f32(10.0))
-        else -> f32(f32(raw.toDouble()) / f32(100.0))
-    }
-    scaled = roundHalfUp(scaled, places, asFloat32 = true)
-    val unitName = unit(prop)
-    val text = scaleText(high, low, scaled, places, unitName)
-    var kg = when (unitName) {
-        "jin" -> f32(scaled * f32(0.5))
-        "lb" -> f32(scaled * lbPerKg)
-        "st" -> {
-            val stones = text.substringBefore(":")
-            val pounds = text.substringAfter(":", "")
-            val totalLb = try {
-                (stones.toInt() * 14) + pounds.toDouble()
-            } catch (error: NumberFormatException) {
-                0.0
-            }
-            roundHalfUp(f32(f32(totalLb) * lbPerKg), 3, asFloat32 = true)
-        }
-        else -> scaled
-    }
-    kg = roundHalfUp(kg, places, asFloat32 = false)
-    return kg to text
-}
-
-fun parseWeight(
-    high: Int,
-    low: Int,
-    prop: Int,
-    cloud: Boolean = false,
-    cloudV4: Boolean = false,
-): Pair<Float, String> {
-    val (kg, text) = weightKilograms(high, low, prop, cloud, cloudV4)
-    return kg.toFloat() to text
-}
 
 private fun cloudProperty(prop: Int): Int {
     val unitName = unit(prop)
@@ -394,6 +259,52 @@ private fun parseFf(frame: ByteArray, mac: String): ScaleBroadcast {
 }
 
 fun parseBroadcast(frame: ByteArray, mac: String = ""): ScaleBroadcast {
+    if (NativeProtocol.isLoaded) {
+        return nativeParseBroadcast(frame, mac)
+    }
+    return ktParseBroadcast(frame, mac)
+}
+
+private fun nativeParseBroadcast(frame: ByteArray, mac: String): ScaleBroadcast {
+    val r = NativeProtocol.nativeParseBroadcast(frame)
+    val errorCode = r[BrIdx.ERROR].toInt()
+    when (errorCode) {
+        1 -> throw FrameFormatError("broadcast is empty")
+        2 -> throw FrameFormatError("unknown broadcast header")
+        3 -> throw FrameFormatError("broadcast is too short")
+        4 -> throw EncryptedBroadcastError("encrypted 0xC0 broadcast is outside the first release")
+    }
+    val swMode = r[BrIdx.SW_MODE].toInt()
+    val scaleWeight = when (swMode) {
+        0 -> null
+        2 -> ""
+        else -> {
+            val wHigh = r[BrIdx.W_HIGH].toInt()
+            val wLow = r[BrIdx.W_LOW].toInt()
+            val wPlaces = r[BrIdx.W_PLACES].toInt()
+            val wUnit = r[BrIdx.W_UNIT].toInt()
+            val wScaled = r[BrIdx.W_SCALED]
+            scaleText(wHigh, wLow, wScaled, wPlaces, unitNameFromCode(wUnit))
+        }
+    }
+    val hasImpedance = r[BrIdx.HAS_IMPEDANCE].toInt() != 0
+    return ScaleBroadcast(
+        header = r[BrIdx.HEADER].toInt(),
+        version = r[BrIdx.VERSION].toInt(),
+        mac = mac,
+        weightKg = r[BrIdx.WEIGHT_KG].toFloat(),
+        scaleWeight = scaleWeight,
+        impedanceOhm = if (hasImpedance) r[BrIdx.IMPEDANCE].toFloat() else null,
+        productId = r[BrIdx.PRODUCT_ID].toInt(),
+        deviceType = r[BrIdx.DEVICE_TYPE].toInt(),
+        cmdId = r[BrIdx.CMD_ID].toInt(),
+        locked = r[BrIdx.LOCKED].toInt() != 0,
+        seq = r[BrIdx.SEQ].toInt(),
+        property = r[BrIdx.PROPERTY].toInt(),
+    )
+}
+
+private fun ktParseBroadcast(frame: ByteArray, mac: String): ScaleBroadcast {
     if (frame.isEmpty()) {
         throw FrameFormatError("broadcast is empty")
     }

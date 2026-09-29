@@ -1,5 +1,10 @@
-package com.mascill.healthtrack.domain.protocol
+package com.mascill.healthtrack.data.protocol
 
+import com.mascill.healthtrack.domain.model.FrameFormatError
+import com.mascill.healthtrack.domain.model.GattConfirmation
+import com.mascill.healthtrack.domain.model.IncompleteGatt
+import com.mascill.healthtrack.domain.model.ScaleGatt
+import com.mascill.healthtrack.domain.model.UnsupportedGatt
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
