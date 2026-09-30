@@ -1,131 +1,235 @@
 package com.mascill.healthtrack.data.mapper
 
+import com.mascill.healthtrack.data.model.RawBody
 import com.mascill.healthtrack.data.model.RawGattConfirmation
 import com.mascill.healthtrack.data.model.RawGattMeasurement
+import com.mascill.healthtrack.data.util.GIdx
 import com.mascill.healthtrack.data.util.GattConst
-import com.mascill.healthtrack.data.util.weightKilograms
+import com.mascill.healthtrack.data.util.RIdx
 import com.mascill.healthtrack.domain.model.GattConfirmation
 import com.mascill.healthtrack.domain.model.ScaleGatt
 import java.time.Instant
 
 /**
- * Mapping [RawGattMeasurement] data model to [ScaleGatt] domain model.
+ * Maps a GATT measurement to [ScaleGatt].
+ * Composition clamps run only when [RawGattMeasurement.body] is present.
+ * Muscle is recalculated for [GattConst.CMD_LIVE] and [GattConst.CMD_HISTORY].
  */
-fun RawGattMeasurement?.toScaleGatt(): ScaleGatt {
-    val raw = this
-    val (weightKg, scaleWeight) = raw.toGattWeight()
-    val composition = if (raw != null && raw.lockFlag > 0) raw.toComposition(weightKg) else null
+fun RawGattMeasurement.toScaleGatt(): ScaleGatt {
+    val (kg, scaleWeight) = weightKilograms(weightHigh, weightLow, property, cloud = false)
+    val weightKg = storedWeight(kg)
+    val recalculate = command == GattConst.CMD_LIVE || command == GattConst.CMD_HISTORY
+    val values = body?.toComposition(weightKg, recalculate) ?: Composition()
     return ScaleGatt(
-        version = raw?.version ?: 0,
-        command = raw?.command,
-        lockFlag = raw?.lockFlag ?: 0,
-        property = raw?.property?.and(GattConst.LOW_BYTE) ?: 0,
+        version = version,
+        command = command,
+        lockFlag = lockFlag,
+        property = property and GattConst.LOW_BYTE,
         weightKg = weightKg,
         scaleWeight = scaleWeight,
-        history = raw?.history ?: false,
-        axunge = composition?.axunge ?: 0.0,
-        water = composition?.water ?: 0.0,
-        muscle = composition?.muscle ?: 0.0,
-        bmr = composition?.bmr ?: 0.0,
-        visceralFat = composition?.visceral ?: 0.0,
-        oriVisceralFat = composition?.ori ?: 0.0,
-        bone = composition?.bone ?: 0.0,
-        roleId = raw?.roleId ?: 0,
-        weighingDate = raw?.weighingDateEpoch?.takeIf { it > 0 }?.let(Instant::ofEpochSecond),
+        history = history,
+        axunge = values.axunge,
+        water = values.water,
+        muscle = values.muscle,
+        bmr = values.bmr,
+        visceralFat = values.visceral,
+        oriVisceralFat = values.ori,
+        bone = values.bone,
+        roleId = roleId,
+        weighingDate = weighingDateEpoch?.let(Instant::ofEpochSecond),
     )
 }
 
 /**
- * Mapping [RawGattConfirmation] data model to [GattConfirmation] domain model.
+ * Maps a GATT role match to [GattConfirmation].
  */
-fun RawGattConfirmation?.toGattConfirmation(): GattConfirmation {
-    val (weightKg, scaleWeight) = this.toGattWeight()
+fun RawGattConfirmation.toGattConfirmation(): GattConfirmation {
+    val (kg, scaleWeight) = weightKilograms(weightHigh, weightLow, property, cloud = false)
     return GattConfirmation(
-        version = this?.version ?: 0,
-        command = this?.command ?: 0,
-        property = this?.property?.and(GattConst.LOW_BYTE) ?: 0,
-        weightKg = weightKg,
+        version = version,
+        command = command,
+        property = property and GattConst.LOW_BYTE,
+        weightKg = storedWeight(kg),
         scaleWeight = scaleWeight,
-        matchedRoles = this?.matchedRoles.orEmpty(),
+        matchedRoles = matchedRoles,
     )
 }
 
-private fun RawGattMeasurement?.toGattWeight(): Pair<Double, String> {
-    val raw = this ?: return 0.0 to ""
-    val (kg, scaleWeight) = weightKilograms(raw.weightHigh, raw.weightLow, raw.property, cloud = false)
-    return storedWeight(kg) to scaleWeight
+/**
+ * Maps a successful native GATT measurement array to [ScaleGatt].
+ * The scale text is built in Kotlin. The caller rejects a native error code before this mapping.
+ */
+internal fun DoubleArray.toScaleGatt(): ScaleGatt {
+    val wHigh = this[GIdx.W_HIGH].toInt()
+    val wLow = this[GIdx.W_LOW].toInt()
+    val prop = this[GIdx.PROPERTY].toInt()
+    val (_, scaleWeight) = weightKilograms(wHigh, wLow, prop, cloud = false)
+    return ScaleGatt(
+        version = this[GIdx.VERSION].toInt(),
+        command = if (this[GIdx.HAS_CMD].toInt() != GattConst.FLAG_OFF) this[GIdx.COMMAND].toInt() else null,
+        lockFlag = this[GIdx.LOCK_FLAG].toInt(),
+        property = this[GIdx.PROPERTY].toInt(),
+        weightKg = this[GIdx.WEIGHT_KG],
+        scaleWeight = scaleWeight,
+        history = this[GIdx.HISTORY].toInt() != GattConst.FLAG_OFF,
+        axunge = this[GIdx.AXUNGE],
+        water = this[GIdx.WATER],
+        muscle = this[GIdx.MUSCLE],
+        bmr = this[GIdx.BMR],
+        visceralFat = this[GIdx.VISCERAL],
+        oriVisceralFat = this[GIdx.ORI_VISCERAL],
+        bone = this[GIdx.BONE],
+        roleId = this[GIdx.ROLE_ID].toInt(),
+        weighingDate = if (this[GIdx.HAS_DATE].toInt() != GattConst.FLAG_OFF) {
+            Instant.ofEpochSecond(this[GIdx.DATE_EPOCH].toLong())
+        } else {
+            null
+        },
+    )
 }
 
-private fun RawGattConfirmation?.toGattWeight(): Pair<Double, String> {
-    val raw = this ?: return 0.0 to ""
-    val (kg, scaleWeight) = weightKilograms(raw.weightHigh, raw.weightLow, raw.property, cloud = false)
-    return storedWeight(kg) to scaleWeight
+/**
+ * Maps a successful native role-match array to [GattConfirmation].
+ * Role ids start at [RIdx.ROLES_START] and run for [RIdx.ROLE_COUNT] entries.
+ * The caller rejects a native error code before this mapping.
+ */
+internal fun DoubleArray.toGattConfirmation(): GattConfirmation {
+    val wHigh = this[RIdx.W_HIGH].toInt()
+    val wLow = this[RIdx.W_LOW].toInt()
+    val prop = this[RIdx.PROPERTY].toInt()
+    val (_, scaleWeight) = weightKilograms(wHigh, wLow, prop, cloud = false)
+    val roleCount = this[RIdx.ROLE_COUNT].toInt()
+    val roles = ArrayList<Int>(roleCount)
+    repeat(roleCount) { i ->
+        roles.add(this[RIdx.ROLES_START + i].toInt())
+    }
+    return GattConfirmation(
+        version = this[RIdx.VERSION].toInt(),
+        command = this[RIdx.COMMAND].toInt(),
+        property = prop and GattConst.LOW_BYTE,
+        weightKg = storedWeight(this[RIdx.WEIGHT_KG]),
+        scaleWeight = scaleWeight,
+        matchedRoles = roles,
+    )
 }
 
+/**
+ * Keeps the same binary rounding as multiplying a weight by [GattConst.TENTHS] and dividing it back.
+ */
 private fun storedWeight(kg: Double): Double = (kg * GattConst.TENTHS) / GattConst.TENTHS
 
-private fun RawGattMeasurement.toComposition(weightKg: Double): Composition {
-    val (visceral, ori) = setVisceral(visceralRaw)
-    val baseMuscle = setMuscle(muscleRaw)
-    val muscle = if (command == GattConst.CMD_LIVE || command == GattConst.CMD_HISTORY) {
-        recalculateMuscle(baseMuscle, weightKg)
-    } else {
-        baseMuscle
-    }
+private fun RawBody.toComposition(weightKg: Double, recalculate: Boolean): Composition {
+    val (shown, ori) = setVisceral(visceral)
+    val baseMuscle = setMuscle(muscle)
     return Composition(
-        axunge = setAxunge(axungeRaw),
-        water = setWater(waterRaw),
-        muscle = muscle,
-        bmr = setBmr(bmrRaw),
-        visceral = visceral,
+        axunge = setAxunge(axunge),
+        water = setWater(water),
+        muscle = if (recalculate) recalculateMuscle(baseMuscle, weightKg) else baseMuscle,
+        bmr = setBmr(bmr),
+        visceral = shown,
         ori = ori,
-        bone = setBone(boneRaw),
+        bone = setBone(bone),
     )
 }
 
+/**
+ * Body fat percent. Raw values at or above [GattConst.RAW_ABSENT], and percents
+ * outside [GattConst.AXUNGE_MIN]..[GattConst.AXUNGE_MAX], become [GattConst.CLEARED].
+ */
 private fun setAxunge(raw: Int): Double {
-    if (raw >= GattConst.RAW_ABSENT) return 0.0
+    if (raw >= GattConst.RAW_ABSENT) {
+        return GattConst.CLEARED
+    }
     val value = raw / GattConst.TENTHS
-    return if (value in GattConst.AXUNGE_MIN..GattConst.AXUNGE_MAX) value else 0.0
+    if (value >= GattConst.AXUNGE_MIN && value <= GattConst.AXUNGE_MAX) {
+        return value
+    }
+    return GattConst.CLEARED
 }
 
+/**
+ * Body water percent. Values outside [GattConst.WATER_MIN]..[GattConst.WATER_MAX],
+ * and values at or above [GattConst.FULL_PERCENT], become [GattConst.CLEARED].
+ */
 private fun setWater(raw: Int): Double {
     val value = raw / GattConst.TENTHS
-    return if (value !in GattConst.WATER_MIN..<GattConst.FULL_PERCENT || value > GattConst.WATER_MAX) 0.0 else value
+    if (value >= GattConst.FULL_PERCENT || value < GattConst.WATER_MIN || value > GattConst.WATER_MAX) {
+        return GattConst.CLEARED
+    }
+    return value
 }
 
+/**
+ * Muscle percent. A raw percent at or above [GattConst.FULL_PERCENT] becomes [GattConst.CLEARED].
+ */
 private fun setMuscle(raw: Int): Double {
     val value = raw / GattConst.TENTHS
-    return if (value >= GattConst.FULL_PERCENT) 0.0 else value
+    if (value >= GattConst.FULL_PERCENT) {
+        return GattConst.CLEARED
+    }
+    return value
 }
 
+/**
+ * Basal metabolic rate. Raw values at or above [GattConst.RAW_ABSENT] become [GattConst.CLEARED].
+ * Raw values at or above [GattConst.BMR_DIVIDED] are divided by [GattConst.TENTHS].
+ */
 private fun setBmr(raw: Int): Double {
-    if (raw >= GattConst.RAW_ABSENT) return 0.0
-    return if (raw >= GattConst.BMR_DIVIDED) raw / GattConst.TENTHS else raw.toDouble()
+    if (raw >= GattConst.RAW_ABSENT) {
+        return GattConst.CLEARED
+    }
+    if (raw >= GattConst.BMR_DIVIDED) {
+        return raw / GattConst.TENTHS
+    }
+    return raw.toDouble()
 }
 
+/**
+ * Visceral fat. The first value is the clamped display percent.
+ * The second value is the raw integer kept as [ScaleGatt.oriVisceralFat].
+ * Display percents above [GattConst.VISCERAL_MAX], and percents at or above
+ * [GattConst.FULL_PERCENT], become [GattConst.CLEARED].
+ */
 private fun setVisceral(raw: Int): Pair<Double, Double> {
     var shown = raw / GattConst.TENTHS
     if (shown >= GattConst.FULL_PERCENT || shown > GattConst.VISCERAL_MAX) {
-        shown = 0.0
+        shown = GattConst.CLEARED
     }
     return shown to raw.toDouble()
 }
 
+/**
+ * Bone mass in kilograms. Raw values at or above [GattConst.RAW_ABSENT] become [GattConst.CLEARED].
+ * Values below [GattConst.BONE_MIN] become [GattConst.CLEARED].
+ * Values above [GattConst.BONE_MAX] are capped at [GattConst.BONE_MAX].
+ */
 private fun setBone(raw: Int): Double {
-    if (raw >= GattConst.RAW_ABSENT) return 0.0
-    val value = raw / GattConst.TENTHS
-    return when {
-        value < GattConst.BONE_MIN -> 0.0
-        value <= GattConst.BONE_MAX -> value
-        else -> GattConst.BONE_MAX
+    if (raw >= GattConst.RAW_ABSENT) {
+        return GattConst.CLEARED
     }
+    val value = raw / GattConst.TENTHS
+    if (value >= GattConst.BONE_MIN) {
+        if (value <= GattConst.BONE_MAX) {
+            return value
+        }
+        return GattConst.BONE_MAX
+    }
+    return GattConst.CLEARED
 }
 
+/**
+ * Muscle percent for an assembled measurement, derived from muscle mass and body weight.
+ * A ratio at or above [GattConst.MUSCLE_RATIO_CAP] keeps the muscle mass, capped at that
+ * value, and passes it through [setMuscle].
+ */
 private fun recalculateMuscle(muscle: Double, weightKg: Double): Double {
-    val ratio = when {
-        weightKg == 0.0 && muscle == 0.0 -> Double.NaN
-        weightKg == 0.0 -> if (muscle > 0.0) Double.POSITIVE_INFINITY else Double.NEGATIVE_INFINITY
+    val ratio = when (weightKg) {
+        GattConst.CLEARED if muscle == GattConst.CLEARED -> Double.NaN
+        GattConst.CLEARED -> if (muscle > GattConst.CLEARED) {
+            Double.POSITIVE_INFINITY
+        } else {
+            Double.NEGATIVE_INFINITY
+        }
         else -> (muscle / weightKg) * GattConst.FULL_PERCENT
     }
     val value = if (ratio >= GattConst.MUSCLE_RATIO_CAP) {
@@ -134,19 +238,23 @@ private fun recalculateMuscle(muscle: Double, weightKg: Double): Double {
         ratio
     }
     val raw = when {
-        value.isNaN() -> 0
+        value.isNaN() -> GattConst.CLEARED.toInt()
         value.isInfinite() -> throw ArithmeticException("int overflow")
         else -> (value * GattConst.TENTHS).toInt()
     }
     return setMuscle(raw)
 }
 
+/**
+ * Clamped composition held only while [RawGattMeasurement] becomes [ScaleGatt].
+ * An empty instance is the reading when the frame has no body block.
+ */
 private data class Composition(
-    val axunge: Double,
-    val water: Double,
-    val muscle: Double,
-    val bmr: Double,
-    val visceral: Double,
-    val ori: Double,
-    val bone: Double,
+    val axunge: Double = 0.0,
+    val water: Double = 0.0,
+    val muscle: Double = 0.0,
+    val bmr: Double = 0.0,
+    val visceral: Double = 0.0,
+    val ori: Double = 0.0,
+    val bone: Double = 0.0,
 )

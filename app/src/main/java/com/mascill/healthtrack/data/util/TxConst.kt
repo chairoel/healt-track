@@ -26,6 +26,15 @@ internal object TxConst {
     const val CMD_OPEN = 0
     const val CMD_LOCKED = 1
 
+    const val FLAG_OFF = 0
+    const val NO_PROPERTY = 0
+    const val NO_PRODUCT = 0
+    const val NO_SEQ = 0
+    const val NO_WEIGHT = 0f
+    const val NO_IMPEDANCE = 0f
+    const val BIT_CLEAR = '0'
+    const val BIT_SET = '1'
+
     const val LOW_BYTE = 0xFF
     const val ENCRYPTED = 0x80
     const val LOCK_BIT = 7
@@ -41,8 +50,12 @@ internal object TxConst {
     const val TEXT_EMPTY = 2
 
     const val AD_MANUFACTURER = 0xFF
+    const val AD_START = 0
+    const val AD_END = 0
+    const val AD_LENGTH_BYTES = 1
     const val AD_TYPE = 0
     const val AD_DATA = 1
+    const val MANUFACTURER_ID_MIN = 0
     const val MIN_AD_BLOCK = 2
     const val MANUFACTURER_ID_MAX = 0xFFFF
     const val HIGH_BYTE_SHIFT = 8

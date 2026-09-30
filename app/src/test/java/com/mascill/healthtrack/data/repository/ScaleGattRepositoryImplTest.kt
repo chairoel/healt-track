@@ -1,5 +1,6 @@
 package com.mascill.healthtrack.data.repository
 
+import com.mascill.healthtrack.data.di.DataModule
 import com.mascill.healthtrack.domain.model.IncompleteGatt
 import com.mascill.healthtrack.domain.model.ScaleGatt
 import org.junit.Assert.assertEquals
@@ -8,7 +9,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ScaleGattRepositoryImplTest {
-    private val repository = ScaleGattRepositoryImpl()
+    private val repository = ScaleGattRepositoryImpl(DataModule.gattParser())
 
     @Test
     fun singleGattFrameMatchesParser() {

@@ -1,20 +1,23 @@
 package com.mascill.healthtrack.data.repository.transmission
 
+import com.mascill.healthtrack.data.model.RawImpedance
+import com.mascill.healthtrack.data.model.RawTransmission
+import com.mascill.healthtrack.data.model.RawWeight
 import com.mascill.healthtrack.data.util.TxConst
-import com.mascill.healthtrack.data.util.mapWeight
 import com.mascill.healthtrack.data.util.u8
-import com.mascill.healthtrack.domain.model.ScaleTransmission
 
 /**
- * Transmission header `0xFF`, the cloud frame.
- * The version is byte 2 and the property is byte 3. The product id is bytes 6..9.
- * Product bytes `FA FB FC FD` become product id 997264800 with property 4.
- * Product id 1104000001 also forces property 4.
- * Versions 16 and 17 are cloud v4: the weight high byte is byte 5 and the low byte is byte 4.
+ * Transmission header [TxConst.HEADER_FF], the cloud frame.
+ * The version is [TxConst.FF_VERSION] and the property is [TxConst.FF_PROPERTY].
+ * The product id is [TxConst.FF_PRODUCT] for [TxConst.FF_PRODUCT_LEN] bytes.
+ * [TxConst.CLOUD_SENTINEL] becomes product id [TxConst.CLOUD_SENTINEL_ID] with [TxConst.CLOUD_FORCED_PROPERTY].
+ * [TxConst.CLOUD_PRODUCT_SPECIAL] also forces that property.
+ * [TxConst.VERSION_16] and [TxConst.VERSION_17] are cloud v4: the weight high byte is [TxConst.FF_WEIGHT_HIGH]
+ * and the low byte is [TxConst.FF_WEIGHT_LOW].
  * Older cloud versions use the same byte order with the cloud decimal layout.
- * The stored property is [cloudProperty], not the raw byte. Impedance is absent.
+ * The stored property is rebuilt by the mapper. Impedance is absent.
  */
-internal fun parseFf(frame: ByteArray, mac: String): ScaleTransmission {
+internal fun parseFf(frame: ByteArray): RawTransmission {
     need(frame, TxConst.FF_MIN)
     val version = frame.u8(TxConst.FF_VERSION)
     var prop = frame.u8(TxConst.FF_PROPERTY)
@@ -28,25 +31,22 @@ internal fun parseFf(frame: ByteArray, mac: String): ScaleTransmission {
         prop = TxConst.CLOUD_FORCED_PROPERTY
     }
     val cloudV4 = version == TxConst.VERSION_16 || version == TxConst.VERSION_17
-    val (weightKg, scaleWeight) = mapWeight(
-        frame.u8(TxConst.FF_WEIGHT_HIGH),
-        frame.u8(TxConst.FF_WEIGHT_LOW),
-        prop,
-        cloud = !cloudV4,
-        cloudV4 = cloudV4,
-    )
-    return fromWeight(
-        frame,
-        mac,
+    return RawTransmission(
+        header = frame.u8(TxConst.HEADER),
         version = version,
+        weight = RawWeight.Bytes(
+            frame.u8(TxConst.FF_WEIGHT_HIGH),
+            frame.u8(TxConst.FF_WEIGHT_LOW),
+            cloud = !cloudV4,
+            cloudV4 = cloudV4,
+        ),
+        impedance = RawImpedance.Absent,
+        property = prop,
+        useCloudProperty = true,
+        productId = product,
         deviceType = TxConst.DEVICE_CLOUD,
         cmdId = TxConst.CMD_OPEN,
-        prop = cloudProperty(prop),
-        weightKg = weightKg,
-        scaleWeight = scaleWeight,
-        impedanceOhm = null,
-        productId = product,
-        seq = 0,
+        seq = TxConst.NO_SEQ,
         locked = false,
     )
 }

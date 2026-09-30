@@ -1,16 +1,19 @@
 package com.mascill.healthtrack.data.model
 
 /**
- * Raw parsed transmission data before mapping to domain model.
- * Contains byte values directly from protocol, not yet converted.
+ * Transmission fields taken off a frame, before they become a domain reading.
+ *
+ * [weight] and [impedance] stay separate because `0xCA`, `0xC0`, and `0xFF` do not share
+ * one conversion. [property] is the byte used for that conversion. [useCloudProperty] stores
+ * the rebuilt cloud property instead of this byte.
  */
 data class RawTransmission(
     val header: Int,
     val version: Int,
-    val weightHigh: Int,
-    val weightLow: Int,
+    val weight: RawWeight,
+    val impedance: RawImpedance,
     val property: Int,
-    val impedanceRaw: Int?,
+    val useCloudProperty: Boolean = false,
     val productId: Int,
     val deviceType: Int,
     val cmdId: Int,
@@ -18,8 +21,48 @@ data class RawTransmission(
     val locked: Boolean,
 )
 
+/** How a transmission frame carries its weight. */
+sealed interface RawWeight {
+    /** High and low bytes, converted with the frame property. */
+    data class Bytes(
+        val high: Int,
+        val low: Int,
+        val cloud: Boolean = false,
+        val cloudV4: Boolean = false,
+    ) : RawWeight
+
+    /** One integer divided by ten. The scale text is absent. */
+    data class Tenths(val raw: Int) : RawWeight
+
+    /** No weight and no scale text. */
+    data object None : RawWeight
+
+    /** No weight, with an empty scale text. */
+    data object Blank : RawWeight
+}
+
+/** How a transmission frame carries impedance. */
+sealed interface RawImpedance {
+    data object Absent : RawImpedance
+    data object Zero : RawImpedance
+    data class Tenths(val raw: Int) : RawImpedance
+}
+
 /**
- * Raw parsed GATT measurement data before mapping to domain model.
+ * Body-composition integers sliced from a GATT frame, before display clamps.
+ */
+data class RawBody(
+    val axunge: Int,
+    val water: Int,
+    val muscle: Int,
+    val bmr: Int,
+    val visceral: Int,
+    val bone: Int,
+)
+
+/**
+ * GATT measurement fields before mapping to the domain model.
+ * A null [body] means this frame has no composition block.
  */
 data class RawGattMeasurement(
     val version: Int,
@@ -28,19 +71,14 @@ data class RawGattMeasurement(
     val property: Int,
     val weightHigh: Int,
     val weightLow: Int,
-    val history: Boolean,
-    val axungeRaw: Int,
-    val waterRaw: Int,
-    val muscleRaw: Int,
-    val bmrRaw: Int,
-    val visceralRaw: Int,
-    val boneRaw: Int,
-    val roleId: Int,
-    val weighingDateEpoch: Long?,
+    val history: Boolean = false,
+    val body: RawBody? = null,
+    val roleId: Int = 0,
+    val weighingDateEpoch: Long? = null,
 )
 
 /**
- * Raw parsed GATT confirmation (role matching) data.
+ * GATT role-match fields before mapping to the domain model.
  */
 data class RawGattConfirmation(
     val version: Int,
@@ -50,14 +88,3 @@ data class RawGattConfirmation(
     val weightLow: Int,
     val matchedRoles: List<Int>,
 )
-
-/**
- * Sealed interface for raw GATT parse results.
- */
-sealed interface RawGattResult
-
-@JvmInline
-value class RawMeasurement(val data: RawGattMeasurement) : RawGattResult
-
-@JvmInline
-value class RawConfirmation(val data: RawGattConfirmation) : RawGattResult

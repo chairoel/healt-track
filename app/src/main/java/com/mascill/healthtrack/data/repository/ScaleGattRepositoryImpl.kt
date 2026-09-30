@@ -10,13 +10,14 @@ import javax.inject.Inject
  * Reads GATT frames.
  *
  * [parseGatt] builds a new [GattParser] for every frame and rejects a packet that is still incomplete.
- * [parse] keeps one [GattParser] so split commands 18, 19, and 20 can finish on a later call.
- * Android parses complete bodies in `libscale_protocol.so`. The JVM host uses the Kotlin readers
- * under `data.repository.gatt`.
+ * [parse] keeps the [GattParser] from [com.mascill.healthtrack.data.di.DataModule]
+ * so split commands 18, 19, and 20 can finish on a later call.
+ * Android parses complete bodies in `libscale_protocol.so`. The JVM host reads frames
+ * under `data.repository.gatt`. Both paths build the domain model in `data.mapper`.
  */
-class ScaleGattRepositoryImpl @Inject constructor() : ScaleGattRepository {
-    private val parser = GattParser()
-
+class ScaleGattRepositoryImpl @Inject constructor(
+    private val parser: GattParser,
+) : ScaleGattRepository {
     override fun parseGatt(frame: ByteArray): GattResult {
         val parsed = GattParser().parse(frame) ?: throw IncompleteGatt("GATT packet is incomplete")
         return parsed

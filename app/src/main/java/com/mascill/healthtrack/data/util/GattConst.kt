@@ -39,6 +39,9 @@ internal object GattConst {
     const val BYTE_SPAN = 256
 
     const val ERR_OK = 0
+    const val FLAG_OFF = 0
+    const val INT_ABSENT = 0
+    const val EMPTY_LEN = 0
 
     const val LOCK_MASK = 1
 
@@ -94,4 +97,5 @@ internal object GattConst {
     const val BONE_MIN = 1.0
     const val BONE_MAX = 4.0
     const val MUSCLE_RATIO_CAP = 50.0
+    const val CLEARED = 0.0
 }

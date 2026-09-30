@@ -14,7 +14,7 @@ internal fun need(frame: ByteArray, size: Int) {
 }
 
 /**
- * Low 8 bits of [value] read as a signed Java byte.
+ * Bits in [GattConst.LOW_BYTE], read as a signed Java byte.
  */
 internal fun javaByte(value: Int): Int {
     val unsigned = value and GattConst.LOW_BYTE
@@ -22,34 +22,37 @@ internal fun javaByte(value: Int): Int {
 }
 
 /**
- * Big-endian integer, or 0 when the bytes are empty or do not fit in a signed 32-bit value.
+ * Big-endian integer, or [GattConst.INT_ABSENT] when the bytes are empty
+ * or do not fit in a signed 32-bit value.
  */
 private fun bytesToIntSafe(raw: ByteArray): Int {
     if (raw.isEmpty()) {
-        return 0
+        return GattConst.INT_ABSENT
     }
     var value = 0L
     for (byte in raw) {
         value = (value shl GattConst.BYTE_SHIFT) or (byte.u8().toLong())
     }
     if (value > Int.MAX_VALUE) {
-        return 0
+        return GattConst.INT_ABSENT
     }
     return value.toInt()
 }
 
 /**
- * Big-endian integer at [start], length [size]. A slice that runs past the frame is 0.
+ * Big-endian integer at [start], length [size].
+ * A slice that runs past the frame is [GattConst.INT_ABSENT].
  */
 internal fun sliceInt(frame: ByteArray, start: Int, size: Int): Int {
-    if (size <= 0 || frame.size < start + size) {
-        return 0
+    if (size <= GattConst.INT_ABSENT || frame.size < start + size) {
+        return GattConst.INT_ABSENT
     }
     return bytesToIntSafe(frame.copyOfRange(start, start + size))
 }
 
 /**
- * Packet total and packet number packed into one byte on commands 18, 19, and 20.
+ * Packet total and packet number packed into one byte on [GattConst.CMD_LIVE],
+ * [GattConst.CMD_HISTORY], and [GattConst.CMD_ROLES].
  * The high nibble is the number. The low nibble is the total.
  */
 internal fun splitPack(raw: Int): Pair<Int, Int> {
@@ -61,8 +64,8 @@ internal fun splitPack(raw: Int): Pair<Int, Int> {
 }
 
 /**
- * Joins packet payloads in number order, starting at 1.
- * A number at or above 128 is stored under its signed-byte key.
+ * Joins packet payloads in number order, starting at [GattConst.FIRST_PACKET].
+ * A number at or above [GattConst.SIGNED_BYTE] is stored under its signed-byte key.
  */
 internal fun concatPackets(store: Map<Int, ByteArray>): ByteArray {
     val parts = ArrayList<ByteArray>(store.size)

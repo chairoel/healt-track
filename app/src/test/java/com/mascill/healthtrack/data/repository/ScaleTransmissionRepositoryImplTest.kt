@@ -1,11 +1,12 @@
 package com.mascill.healthtrack.data.repository
 
+import com.mascill.healthtrack.data.di.DataModule
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ScaleTransmissionRepositoryImplTest {
-    private val repository = ScaleTransmissionRepositoryImpl()
+    private val repository = ScaleTransmissionRepositoryImpl(DataModule.scaleHeaders())
 
     @Test
     fun transmissionReadsLockedKilograms() {

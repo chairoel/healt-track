@@ -1,6 +1,12 @@
-package com.mascill.healthtrack.data.util
+package com.mascill.healthtrack.data.mapper
 
 import com.mascill.healthtrack.data.datasource.NativeProtocol
+import com.mascill.healthtrack.data.util.Constants
+import com.mascill.healthtrack.data.util.bits
+import com.mascill.healthtrack.data.util.bytesToInt
+import com.mascill.healthtrack.data.util.f32
+import com.mascill.healthtrack.data.util.javaFloatText
+import com.mascill.healthtrack.data.util.roundHalfUp
 
 /**
  * Extract unit name from property byte.

@@ -11,13 +11,15 @@ import com.mascill.healthtrack.domain.model.UnsupportedGatt
 /**
  * Reassembles one GATT session.
  *
- * Version 16 and version-17 commands 0 and 1 are complete in a single frame.
- * Commands 18 and 19 collect live and history packets until the packet count matches.
- * Command 20 appends role bytes. A frame that still needs more packets returns null.
- * [com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl.parse] keeps one instance.
+ * Version [GattConst.VERSION_16] and version-[GattConst.VERSION_17] commands [GattConst.CMD_UNLOCKED]
+ * and [GattConst.CMD_LOCKED] are complete in a single frame.
+ * [GattConst.CMD_LIVE] and [GattConst.CMD_HISTORY] collect packets until the packet count matches.
+ * [GattConst.CMD_ROLES] appends role bytes. A frame that still needs more packets returns null.
+ * [com.mascill.healthtrack.data.di.DataModule] supplies the instance kept by
+ * [com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl.parse].
  * [com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl.parseGatt] builds a new one per call.
  */
-internal class GattParser {
+class GattParser {
     private var live: MutableMap<Int, ByteArray>? = mutableMapOf()
     private var history: MutableMap<Int, ByteArray>? = mutableMapOf()
     private var roles: ByteArray? = byteArrayOf()
@@ -51,18 +53,18 @@ internal class GattParser {
         if (command == GattConst.CMD_ROLES) {
             return absorbRoles(frame)
         }
-        throw UnsupportedGatt("GATT version 17 command is outside this parser")
+        throw UnsupportedGatt("GATT command is outside this parser")
     }
 
     /**
-     * Stores one piece of command 18 or 19.
-     * Packet number 1 clears the previous buffer. The assembled body is parsed only when
-     * the last packet has arrived and every number from 1 to the total is present.
+     * Stores one piece of [GattConst.CMD_LIVE] or [GattConst.CMD_HISTORY].
+     * Packet number [GattConst.FIRST_PACKET] clears the previous buffer. The assembled body is parsed only when
+     * the last packet has arrived and every number from [GattConst.FIRST_PACKET] to the total is present.
      */
     private fun absorb(frame: ByteArray, command: Int): ScaleGatt? {
         need(frame, GattConst.MIN_PACKET)
         val payloadLen = javaByte(frame.u8(GattConst.LENGTH)) - GattConst.LENGTH_OVERHEAD
-        if (payloadLen < 0) {
+        if (payloadLen < GattConst.EMPTY_LEN) {
             throw FrameFormatError("GATT payload length is not valid")
         }
         need(frame, GattConst.PAYLOAD + payloadLen)
@@ -98,19 +100,19 @@ internal class GattParser {
     }
 
     /**
-     * Appends one piece of command 20. The role list is parsed when the last packet arrives.
+     * Appends one piece of [GattConst.CMD_ROLES]. The role list is parsed when the last packet arrives.
      */
     private fun absorbRoles(frame: ByteArray): GattConfirmation? {
         need(frame, GattConst.MIN_PACKET)
         val payloadLen = javaByte(frame.u8(GattConst.LENGTH)) - GattConst.LENGTH_OVERHEAD
-        val payload = if (payloadLen > 0) {
+        val payload = if (payloadLen > GattConst.EMPTY_LEN) {
             need(frame, GattConst.PAYLOAD + payloadLen)
             frame.copyOfRange(GattConst.PAYLOAD, GattConst.PAYLOAD + payloadLen)
         } else {
-            ByteArray(0)
+            ByteArray(GattConst.EMPTY_LEN)
         }
         val (total, number) = splitPack(frame.u8(GattConst.PACK))
-        val buffer = (roles ?: ByteArray(0)) + payload
+        val buffer = (roles ?: ByteArray(GattConst.EMPTY_LEN)) + payload
         roles = buffer
         if (total != number) {
             return null
