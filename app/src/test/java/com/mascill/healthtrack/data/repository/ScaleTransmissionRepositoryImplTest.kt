@@ -4,12 +4,12 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class ScaleBroadcastRepositoryImplTest {
-    private val repository = ScaleBroadcastRepositoryImpl()
+class ScaleTransmissionRepositoryImplTest {
+    private val repository = ScaleTransmissionRepositoryImpl()
 
     @Test
-    fun broadcastReadsLockedKilograms() {
-        val parsed = repository.parseBroadcast(lockedFrame, "AA:BB:CC:DD:EE:FF")
+    fun transmissionReadsLockedKilograms() {
+        val parsed = repository.parseTransmission(lockedFrame, "AA:BB:CC:DD:EE:FF")
         assertEquals("AA:BB:CC:DD:EE:FF", parsed.mac)
         assertEquals(70.5f, parsed.weightKg, 0f)
     }

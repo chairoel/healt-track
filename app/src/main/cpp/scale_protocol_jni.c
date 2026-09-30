@@ -95,13 +95,13 @@ Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeWeightKilogram
 }
 
 /* ════════════════════════════════════════════════════════════
- *  Broadcast
+ *  Transmission
  * ════════════════════════════════════════════════════════════ */
 
 #define BR_SIZE 18
 
 JNIEXPORT jdoubleArray JNICALL
-Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeParseBroadcast(
+Java_com_mascill_healthtrack_data_datasource_NativeProtocol_nativeParseTransmission(
         JNIEnv *env, jclass cls, jbyteArray frame) {
     int len;
     uint8_t *buf = get_bytes(env, frame, &len);

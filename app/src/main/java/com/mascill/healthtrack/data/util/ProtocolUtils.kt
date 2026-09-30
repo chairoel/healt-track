@@ -1,6 +1,5 @@
 package com.mascill.healthtrack.data.util
 
-import java.lang.Float
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -39,4 +38,4 @@ fun roundHalfUp(value: Double, places: Int, asFloat32: Boolean): Double {
     return if (asFloat32) f32(number) else number
 }
 
-fun javaFloatText(value: Double): String = Float.toString(value.toFloat())
+fun javaFloatText(value: Double): String = value.toFloat().toString()

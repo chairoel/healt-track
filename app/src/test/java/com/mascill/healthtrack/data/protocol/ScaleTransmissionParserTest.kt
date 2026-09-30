@@ -1,8 +1,8 @@
 package com.mascill.healthtrack.data.protocol
 
 import com.mascill.healthtrack.data.util.mapWeight
-import com.mascill.healthtrack.data.repository.ScaleBroadcastRepositoryImpl
-import com.mascill.healthtrack.domain.model.EncryptedBroadcastError
+import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
+import com.mascill.healthtrack.domain.model.EncryptedTransmissionError
 import com.mascill.healthtrack.domain.model.FrameFormatError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,11 +50,11 @@ class ParseWeightTest {
     }
 }
 
-class BroadcastTest {
+class TransmissionTest {
     @Test
     fun lockedFatC0() {
         val frame = bytes(0xC0, 7, 0x02, 0xC1, 0x13, 0x88, 0x00, 0x01, 0x21)
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(frame, "AA:BB:CC:DD:EE:FF")
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(frame, "AA:BB:CC:DD:EE:FF")
         assertEquals(0xC0, parsed.header)
         assertEquals(1, parsed.version)
         assertEquals("AA:BB:CC:DD:EE:FF", parsed.mac)
@@ -72,18 +72,18 @@ class BroadcastTest {
     fun encryptedC0Rejected() {
         val shortFrame = bytes(0xC0, 1, 0, 0, 0x80, 0, 0, 0, 0x21)
         val longFrame = shortFrame + ByteArray(6)
-        assertThrows(EncryptedBroadcastError::class.java) {
-            ScaleBroadcastRepositoryImpl().parseBroadcast(shortFrame)
+        assertThrows(EncryptedTransmissionError::class.java) {
+            ScaleTransmissionRepositoryImpl().parseTransmission(shortFrame)
         }
-        assertThrows(EncryptedBroadcastError::class.java) {
-            ScaleBroadcastRepositoryImpl().parseBroadcast(longFrame)
+        assertThrows(EncryptedTransmissionError::class.java) {
+            ScaleTransmissionRepositoryImpl().parseTransmission(longFrame)
         }
     }
 
     @Test
     fun lockedCaVersion32() {
         val frame = bytes(0xCA, 0x20, 0, 0, 0, 0, 42, 1, 0x21, 3, 0x02, 0xC1, 0x13, 0x88)
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(frame)
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(frame)
         assertEquals(32, parsed.version)
         assertEquals(42, parsed.productId)
         assertEquals(2, parsed.deviceType)
@@ -96,7 +96,7 @@ class BroadcastTest {
     @Test
     fun unlockedCaVersion32() {
         val frame = bytes(0xCA, 0x20, 0, 0, 0, 0, 42, 0, 0x20, 9, 0x02, 0xC1, 0x13, 0x88)
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(frame)
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(frame)
         assertEquals(0.0f, parsed.weightKg, 0f)
         assertEquals("", parsed.scaleWeight)
         assertEquals(0.0f, parsed.impedanceOhm)
@@ -108,7 +108,7 @@ class BroadcastTest {
     @Test
     fun caVersion17() {
         val frame = bytes(0xCA, 17, 0, 0x21, 2, 0x02, 0xC1, 0, 0, 1, 0)
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(frame)
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(frame)
         assertEquals(70.5f, parsed.weightKg, 0f)
         assertEquals(256, parsed.productId)
         assertEquals(2, parsed.deviceType)
@@ -119,7 +119,7 @@ class BroadcastTest {
     @Test
     fun caVersion16BodyScale() {
         val frame = bytes(0xCA, 16, 0, 0, 0x21, 0, 0, 0, 0x02, 0x8F)
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(frame)
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(frame)
         assertEquals(65.5f, parsed.weightKg, 0f)
         assertNull(parsed.scaleWeight)
         assertEquals(0, parsed.productId)
@@ -130,7 +130,7 @@ class BroadcastTest {
 
     @Test
     fun otherCaVersionEmpty() {
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(bytes(0xCA, 1, 0, 0, 0))
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(bytes(0xCA, 1, 0, 0, 0))
         assertEquals(0.0f, parsed.weightKg, 0f)
         assertEquals(1, parsed.version)
     }
@@ -138,7 +138,7 @@ class BroadcastTest {
     @Test
     fun cloud() {
         val frame = bytes(0xFF, 0, 1, 0x04, 0xC1, 0x02, 0, 0, 0, 2)
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(frame)
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(frame)
         assertEquals(1, parsed.deviceType)
         assertEquals(70.5f, parsed.weightKg, 0f)
         assertEquals(2, parsed.productId)
@@ -150,7 +150,7 @@ class BroadcastTest {
     @Test
     fun specialCloudProduct() {
         val frame = bytes(0xFF, 0, 1, 0, 0xE8, 0x03, 0xFA, 0xFB, 0xFC, 0xFD)
-        val parsed = ScaleBroadcastRepositoryImpl().parseBroadcast(frame)
+        val parsed = ScaleTransmissionRepositoryImpl().parseTransmission(frame)
         assertEquals(997264800, parsed.productId)
         assertEquals(100.0f, parsed.weightKg, 0f)
         assertEquals("100.0", parsed.scaleWeight)
@@ -160,13 +160,13 @@ class BroadcastTest {
     @Test
     fun rejected() {
         assertThrows(FrameFormatError::class.java) {
-            ScaleBroadcastRepositoryImpl().parseBroadcast(byteArrayOf())
+            ScaleTransmissionRepositoryImpl().parseTransmission(byteArrayOf())
         }
         assertThrows(FrameFormatError::class.java) {
-            ScaleBroadcastRepositoryImpl().parseBroadcast(bytes(0xAB))
+            ScaleTransmissionRepositoryImpl().parseTransmission(bytes(0xAB))
         }
         assertThrows(FrameFormatError::class.java) {
-            ScaleBroadcastRepositoryImpl().parseBroadcast(ByteArray(8))
+            ScaleTransmissionRepositoryImpl().parseTransmission(ByteArray(8))
         }
     }
 }

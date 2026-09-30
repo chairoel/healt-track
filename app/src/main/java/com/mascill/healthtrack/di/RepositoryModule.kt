@@ -1,8 +1,8 @@
 package com.mascill.healthtrack.di
 
-import com.mascill.healthtrack.data.repository.ScaleBroadcastRepositoryImpl
+import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
 import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
-import com.mascill.healthtrack.domain.repository.ScaleBroadcastRepository
+import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
 import com.mascill.healthtrack.domain.repository.ScaleGattRepository
 import dagger.Binds
 import dagger.Module
@@ -15,9 +15,9 @@ import javax.inject.Singleton
 abstract class RepositoryModule {
     @Binds
     @Singleton
-    abstract fun bindScaleBroadcastRepository(
-        impl: ScaleBroadcastRepositoryImpl,
-    ): ScaleBroadcastRepository
+    abstract fun bindScaleTransmissionRepository(
+        impl: ScaleTransmissionRepositoryImpl,
+    ): ScaleTransmissionRepository
 
     @Binds
     @Singleton

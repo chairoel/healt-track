@@ -2,6 +2,7 @@ package com.mascill.healthtrack.data.mapper
 
 import com.mascill.healthtrack.data.model.RawGattConfirmation
 import com.mascill.healthtrack.data.model.RawGattMeasurement
+import com.mascill.healthtrack.data.util.GattConst
 import com.mascill.healthtrack.data.util.weightKilograms
 import com.mascill.healthtrack.domain.model.GattConfirmation
 import com.mascill.healthtrack.domain.model.ScaleGatt
@@ -18,7 +19,7 @@ fun RawGattMeasurement?.toScaleGatt(): ScaleGatt {
         version = raw?.version ?: 0,
         command = raw?.command,
         lockFlag = raw?.lockFlag ?: 0,
-        property = raw?.property?.and(0xFF) ?: 0,
+        property = raw?.property?.and(GattConst.LOW_BYTE) ?: 0,
         weightKg = weightKg,
         scaleWeight = scaleWeight,
         history = raw?.history ?: false,
@@ -42,7 +43,7 @@ fun RawGattConfirmation?.toGattConfirmation(): GattConfirmation {
     return GattConfirmation(
         version = this?.version ?: 0,
         command = this?.command ?: 0,
-        property = this?.property?.and(0xFF) ?: 0,
+        property = this?.property?.and(GattConst.LOW_BYTE) ?: 0,
         weightKg = weightKg,
         scaleWeight = scaleWeight,
         matchedRoles = this?.matchedRoles.orEmpty(),
@@ -61,12 +62,12 @@ private fun RawGattConfirmation?.toGattWeight(): Pair<Double, String> {
     return storedWeight(kg) to scaleWeight
 }
 
-private fun storedWeight(kg: Double): Double = (kg * 10.0) / 10.0
+private fun storedWeight(kg: Double): Double = (kg * GattConst.TENTHS) / GattConst.TENTHS
 
 private fun RawGattMeasurement.toComposition(weightKg: Double): Composition {
     val (visceral, ori) = setVisceral(visceralRaw)
     val baseMuscle = setMuscle(muscleRaw)
-    val muscle = if (command == 18 || command == 19) {
+    val muscle = if (command == GattConst.CMD_LIVE || command == GattConst.CMD_HISTORY) {
         recalculateMuscle(baseMuscle, weightKg)
     } else {
         baseMuscle
@@ -83,41 +84,41 @@ private fun RawGattMeasurement.toComposition(weightKg: Double): Composition {
 }
 
 private fun setAxunge(raw: Int): Double {
-    if (raw >= 65535) return 0.0
-    val value = raw / 10.0
-    return if (value in 5.0..45.0) value else 0.0
+    if (raw >= GattConst.RAW_ABSENT) return 0.0
+    val value = raw / GattConst.TENTHS
+    return if (value in GattConst.AXUNGE_MIN..GattConst.AXUNGE_MAX) value else 0.0
 }
 
 private fun setWater(raw: Int): Double {
-    val value = raw / 10.0
-    return if (value >= 100.0 || value < 20.0 || value > 85.0) 0.0 else value
+    val value = raw / GattConst.TENTHS
+    return if (value !in GattConst.WATER_MIN..<GattConst.FULL_PERCENT || value > GattConst.WATER_MAX) 0.0 else value
 }
 
 private fun setMuscle(raw: Int): Double {
-    val value = raw / 10.0
-    return if (value >= 100.0) 0.0 else value
+    val value = raw / GattConst.TENTHS
+    return if (value >= GattConst.FULL_PERCENT) 0.0 else value
 }
 
 private fun setBmr(raw: Int): Double {
-    if (raw >= 65535) return 0.0
-    return if (raw >= 5000) raw / 10.0 else raw.toDouble()
+    if (raw >= GattConst.RAW_ABSENT) return 0.0
+    return if (raw >= GattConst.BMR_DIVIDED) raw / GattConst.TENTHS else raw.toDouble()
 }
 
 private fun setVisceral(raw: Int): Pair<Double, Double> {
-    var shown = raw / 10.0
-    if (shown >= 100.0 || shown > 59.0) {
+    var shown = raw / GattConst.TENTHS
+    if (shown >= GattConst.FULL_PERCENT || shown > GattConst.VISCERAL_MAX) {
         shown = 0.0
     }
     return shown to raw.toDouble()
 }
 
 private fun setBone(raw: Int): Double {
-    if (raw >= 65535) return 0.0
-    val value = raw / 10.0
+    if (raw >= GattConst.RAW_ABSENT) return 0.0
+    val value = raw / GattConst.TENTHS
     return when {
-        value < 1.0 -> 0.0
-        value <= 4.0 -> value
-        else -> 4.0
+        value < GattConst.BONE_MIN -> 0.0
+        value <= GattConst.BONE_MAX -> value
+        else -> GattConst.BONE_MAX
     }
 }
 
@@ -125,17 +126,17 @@ private fun recalculateMuscle(muscle: Double, weightKg: Double): Double {
     val ratio = when {
         weightKg == 0.0 && muscle == 0.0 -> Double.NaN
         weightKg == 0.0 -> if (muscle > 0.0) Double.POSITIVE_INFINITY else Double.NEGATIVE_INFINITY
-        else -> (muscle / weightKg) * 100.0
+        else -> (muscle / weightKg) * GattConst.FULL_PERCENT
     }
-    val value = if (ratio >= 50.0) {
-        if (muscle >= 50.0) 50.0 else muscle
+    val value = if (ratio >= GattConst.MUSCLE_RATIO_CAP) {
+        if (muscle >= GattConst.MUSCLE_RATIO_CAP) GattConst.MUSCLE_RATIO_CAP else muscle
     } else {
         ratio
     }
     val raw = when {
         value.isNaN() -> 0
         value.isInfinite() -> throw ArithmeticException("int overflow")
-        else -> (value * 10.0).toInt()
+        else -> (value * GattConst.TENTHS).toInt()
     }
     return setMuscle(raw)
 }

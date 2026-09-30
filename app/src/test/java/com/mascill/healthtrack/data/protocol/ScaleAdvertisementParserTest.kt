@@ -1,6 +1,6 @@
 package com.mascill.healthtrack.data.protocol
 
-import com.mascill.healthtrack.data.repository.ScaleBroadcastRepositoryImpl
+import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
 import com.mascill.healthtrack.data.util.u8
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertNull
@@ -10,37 +10,37 @@ class ScaleAdvertisementParserTest {
     @Test
     fun payloadAfterFlags() {
         val record = record(frame, byteArrayOf(0x02, 0x01, 0x06))
-        assertArrayEquals(frame, ScaleBroadcastRepositoryImpl().scalePayload(record))
+        assertArrayEquals(frame, ScaleTransmissionRepositoryImpl().scalePayload(record))
     }
 
     @Test
     fun uuidBeforeManufacturerStillTaken() {
         val record = record(frame, byteArrayOf(0x03, 0x02, 0xF0.toByte(), 0xFF.toByte()))
-        assertArrayEquals(frame, ScaleBroadcastRepositoryImpl().scalePayload(record))
+        assertArrayEquals(frame, ScaleTransmissionRepositoryImpl().scalePayload(record))
     }
 
     @Test
     fun otherManufacturerSkipped() {
         val other = byteArrayOf(0x04, 0xFF.toByte(), 0x01, 0x02, 0x03)
         val record = other + record(frame)
-        assertArrayEquals(frame, ScaleBroadcastRepositoryImpl().scalePayload(record))
+        assertArrayEquals(frame, ScaleTransmissionRepositoryImpl().scalePayload(record))
     }
 
     @Test
     fun otherManufacturer() {
-        assertNull(ScaleBroadcastRepositoryImpl().scalePayload(byteArrayOf(0x04, 0xFF.toByte(), 0x01, 0x02, 0x03)))
+        assertNull(ScaleTransmissionRepositoryImpl().scalePayload(byteArrayOf(0x04, 0xFF.toByte(), 0x01, 0x02, 0x03)))
     }
 
     @Test
     fun truncatedRecord() {
-        assertNull(ScaleBroadcastRepositoryImpl().scalePayload(byteArrayOf(0x05, 0xFF.toByte(), 0xC0.toByte())))
+        assertNull(ScaleTransmissionRepositoryImpl().scalePayload(byteArrayOf(0x05, 0xFF.toByte(), 0xC0.toByte())))
     }
 
     @Test
     fun littleEndianManufacturerId() {
         val company = frame.u8(0) or (frame.u8(1) shl 8)
-        assertArrayEquals(frame, ScaleBroadcastRepositoryImpl().payloadFromManufacturer(company, frame.copyOfRange(2, frame.size)))
-        assertNull(ScaleBroadcastRepositoryImpl().payloadFromManufacturer(0x0001, byteArrayOf(0x02, 0x03)))
+        assertArrayEquals(frame, ScaleTransmissionRepositoryImpl().payloadFromManufacturer(company, frame.copyOfRange(2, frame.size)))
+        assertNull(ScaleTransmissionRepositoryImpl().payloadFromManufacturer(0x0001, byteArrayOf(0x02, 0x03)))
     }
 
     private fun record(payload: ByteArray, prefix: ByteArray = byteArrayOf()): ByteArray {

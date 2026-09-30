@@ -129,7 +129,7 @@ private fun ktWeightKilograms(
 }
 
 /**
- * Parse weight bytes returning Float for broadcast compatibility.
+ * Parse weight bytes returning Float for transmission compatibility.
  */
 fun mapWeight(
     high: Int,

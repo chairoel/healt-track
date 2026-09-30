@@ -1,10 +1,10 @@
 package com.mascill.healthtrack.data.model
 
 /**
- * Raw parsed broadcast data before mapping to domain model.
+ * Raw parsed transmission data before mapping to domain model.
  * Contains byte values directly from protocol, not yet converted.
  */
-data class RawBroadcast(
+data class RawTransmission(
     val header: Int,
     val version: Int,
     val weightHigh: Int,

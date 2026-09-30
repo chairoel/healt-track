@@ -1,6 +1,6 @@
 package com.mascill.healthtrack.domain.model
 
-data class ScaleBroadcast(
+data class ScaleTransmission(
     val header: Int,
     val version: Int,
     val mac: String,

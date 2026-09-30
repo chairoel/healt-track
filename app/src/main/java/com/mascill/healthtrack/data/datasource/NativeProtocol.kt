@@ -22,7 +22,7 @@ internal object NativeProtocol {
         high: Int, low: Int, prop: Int, cloud: Boolean, cloudV4: Boolean,
     ): DoubleArray
 
-    /* ── Broadcast ── */
+    /* ── Transmission ── */
 
     /**
      * Returns 18 doubles packed:
@@ -32,7 +32,7 @@ internal object NativeProtocol {
      * [12]=scaleWeightMode(0=null,1=text,2=empty) [13]=weightHigh
      * [14]=weightLow [15]=weightPlaces [16]=weightUnitCode [17]=weightScaled
      */
-    @JvmStatic external fun nativeParseBroadcast(frame: ByteArray): DoubleArray
+    @JvmStatic external fun nativeParseTransmission(frame: ByteArray): DoubleArray
 
     /* ── GATT ── */
 
