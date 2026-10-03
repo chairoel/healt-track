@@ -5,11 +5,8 @@ description: >-
   pattern: domain model, interface, kotlinx.serialization DTO, supabase-kt
   PostgREST RemoteDataSource, enum mapper, impl, Hilt bind, UseCase, JUnit 5
   tests. Local tables use Room; prefs use DataStore. Not Retrofit or Moshi. Triggers: create repository single
-  module, new repository, add repository, buat repository, implement
+  module, new repository, add repository, implement
   repository, ProfileRepository, RemoteDataSource.
-  Only for files under HealthTrack/.
-paths:
-  - "HealthTrack/**"
 ---
 
 # Create New Repository (DevSpeak)

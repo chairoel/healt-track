@@ -1,6 +1,6 @@
 ---
 description: Single-module Android project architecture with Clean Architecture package structure
-globs: ["HealthTrack/**/*.kt", "HealthTrack/**/*.kts"]
+globs: ["HealthTrack/**/*.kt", "HealthTrack/**/*.kts", "app/**/*.kt", "app/**/*.kts", "build.gradle.kts", "settings.gradle.kts"]
 alwaysApply: false
 ---
 

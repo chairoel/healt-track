@@ -1,6 +1,6 @@
 ---
 description: Single-module ViewModel and Compose UI patterns
-globs: ["HealthTrack/**/presentation/**/*.kt"]
+globs: ["HealthTrack/**/presentation/**/*.kt", "app/**/presentation/**/*.kt"]
 alwaysApply: false
 ---
 

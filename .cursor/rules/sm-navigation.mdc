@@ -1,6 +1,6 @@
 ---
 description: Single-module navigation patterns with Jetpack Navigation 3
-globs: ["HealthTrack/**/navigation/**/*.kt", "HealthTrack/**/*Route.kt"]
+globs: ["HealthTrack/**/navigation/**/*.kt", "HealthTrack/**/*Route.kt", "app/**/navigation/**/*.kt", "app/**/*Route.kt"]
 alwaysApply: false
 ---
 

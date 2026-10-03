@@ -1,6 +1,6 @@
 ---
 description: Single-module Hilt dependency injection patterns
-globs: ["HealthTrack/**/di/**/*.kt", "HealthTrack/**/*Module.kt", "HealthTrack/**/*ViewModel.kt"]
+globs: ["HealthTrack/**/di/**/*.kt", "HealthTrack/**/*Module.kt", "HealthTrack/**/*ViewModel.kt", "app/**/di/**/*.kt", "app/**/*Module.kt", "app/**/*ViewModel.kt"]
 alwaysApply: false
 ---
 

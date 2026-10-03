@@ -1,6 +1,6 @@
 ---
 description: Single-module data layer — Repository, RemoteDataSource, mapper (supabase-kt)
-globs: ["HealthTrack/**/data/**/*.kt", "HealthTrack/**/domain/**/*.kt"]
+globs: ["HealthTrack/**/data/**/*.kt", "HealthTrack/**/domain/**/*.kt", "app/**/data/**/*.kt", "app/**/domain/**/*.kt"]
 alwaysApply: false
 ---
 

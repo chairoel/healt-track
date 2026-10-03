@@ -1,6 +1,6 @@
 ---
 description: Log MCP calls that touch the DevSpeak Supabase project; keep docs-plan/supabase files in their roles
-globs: ["HealthTrack/**"]
+globs: ["HealthTrack/**", "app/**", "gradle/**", "build.gradle.kts", "settings.gradle.kts", "gradle.properties", "gradlew", "gradlew.bat"]
 alwaysApply: false
 ---
 

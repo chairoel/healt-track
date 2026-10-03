@@ -1,6 +1,6 @@
 ---
 description: Single-module Android code style and conventions
-globs: ["HealthTrack/**/*.kt"]
+globs: ["HealthTrack/**/*.kt", "app/**/*.kt"]
 alwaysApply: false
 ---
 

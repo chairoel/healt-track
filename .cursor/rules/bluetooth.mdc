@@ -1,24 +1,24 @@
 ---
-description: Bluetooth HealthTrack untuk satu sesi ukur timbangan, pemindaian dan GATT
-globs: ["HealthTrack/**/ble/**/*.kt", "HealthTrack/**/protocol/**/*.kt"]
+description: Bluetooth HealthTrack for one scale measurement session, scanning and GATT
+globs: ["HealthTrack/**/ble/**/*.kt", "HealthTrack/**/protocol/**/*.kt", "app/**/ble/**/*.kt", "app/**/protocol/**/*.kt"]
 alwaysApply: false
 ---
 
 # Bluetooth
 
-API platform: `BluetoothLeScanner` dan `BluetoothGatt`. Urutan lengkap ada di `docs/rencana-aplikasi-android.md`. Perilaku yang diikuti ada di `aplikasi/sesi_ble.py`.
+Platform API: `BluetoothLeScanner` and `BluetoothGatt`. The full sequence is in `docs/rencana-aplikasi-android.md`. The behavior to follow is in `aplikasi/sesi_ble.py`.
 
-- Muatan iklan diterima bila byte pertama `0xCA` atau `0xC0`. Company id 16-bit little-endian ditambah sisa byte pabrik.
-- Siaran `0xC0` dengan bit enkripsi (bit 7 pada byte offset 4) ditolak. Jangan memuat kunci enkripsi.
-- Alamat siaran timbangan pertama yang disimpan. Iklan lain diabaikan setelah alamat itu terpasang.
-- Impedansi laporan adalah ohm pada siaran terkunci. Satu nilai memakai v235. Sepuluh nilai memakai vA019. Jumlah lain menolak sesi.
-- Hentikan pemindaian, lalu `connectGatt(autoConnect = false)`. Jangan menjalankan pemindaian dan `connectGatt` bersamaan. Nyalakan pemindaian lagi setelah notify RX terpasang.
-- Sesi tidak menulis ke karakteristik TX.
-- Berat yang disimpan adalah frame GATT `lock_flag == 1` dan bukan riwayat. Berat GATT yang sudah masuk tidak diganti berat siaran.
-- Iklan yang tidak bisa disambung menutup sesi dari berat siaran terkunci.
-- Tutup sesi hanya bila rumus mengembalikan kode 0.
-- Tiga percobaan sambungan, batas 15 detik, lalu paling banyak dua putaran pindai. Sesi berakhir pada 120 detik atau saat hasil tersimpan.
+- Accept an advertisement payload when the first byte is `0xCA` or `0xC0`. The company id is 16-bit little-endian plus the remaining manufacturer bytes.
+- Reject a `0xC0` broadcast when the encryption bit is set (bit 7 at byte offset 4). Do not load an encryption key.
+- Store the first scale broadcast address. Ignore later advertisements once that address is set.
+- Reported impedance is ohms on the locked broadcast. One value uses v235. Ten values use vA019. Any other count rejects the session.
+- Stop scanning, then `connectGatt(autoConnect = false)`. Do not run scanning and `connectGatt` at the same time. Start scanning again after the RX notify is in place.
+- The session does not write to the TX characteristic.
+- The stored weight is a GATT frame with `lock_flag == 1` that is not history. Do not replace a stored GATT weight with a broadcast weight.
+- An advertisement that cannot connect closes the session from the locked broadcast weight.
+- Close the session only when the formula returns code 0.
+- Three connection attempts, with a 15-second limit, then at most two scan rounds. The session ends at 120 seconds or when the result is stored.
 
-Izin: API 28–30 memakai `BLUETOOTH`, `BLUETOOTH_ADMIN`, dan `ACCESS_FINE_LOCATION` saat memindai. API 31+ memakai `BLUETOOTH_SCAN` dan `BLUETOOTH_CONNECT`. Izin diminta di layar sesi. Foreground service tidak masuk tahap ini.
+Permissions: API 28–30 uses `BLUETOOTH`, `BLUETOOTH_ADMIN`, and `ACCESS_FINE_LOCATION` while scanning. API 31+ uses `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`. Request permissions on the session screen. A foreground service is out of scope for this stage.
 
-UUID layanan Chipsea ada di rencana. Jangan menggantinya.
+The Chipsea service UUID is in the plan. Do not replace it.

@@ -5,12 +5,9 @@ description: >
   ViewModel/MVI-style UI, architecture, performance, and security. Triggers: code review,
   PR review, diff review, pre-merge check, ship/no-ship, LGTM, "review my changes",
   review this branch, or feedback on Kotlin/Android/Compose modules.
-  Only for files under HealthTrack/.
-paths:
-  - "HealthTrack/**"
 ---
 
-**When to use:** Load for pull-request or diff reviews, pre-merge feedback, or any request to critique Kotlin/Android changes under `HealthTrack/` (including Compose UI, ViewModels, DI, and data layers).
+**When to use:** Load for pull-request or diff reviews, pre-merge feedback, or any request to critique Kotlin/Android changes in this project (including Compose UI, ViewModels, DI, and data layers).
 
 # Role: Senior Android Code Reviewer
 

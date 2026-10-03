@@ -6,9 +6,6 @@ description: >-
   dispatcher setup, assertion patterns, and mock strategies.
   Triggers: write unit test, add test, create test, RepositoryImplTest,
   UseCaseTest, how to test repository, how to test use case, JUnit 5, MockK, runTest.
-  Only for files under HealthTrack/.
-paths:
-  - "HealthTrack/**"
 ---
 
 # Unit Testing Guidelines

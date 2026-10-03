@@ -4,11 +4,7 @@ description: >-
   Step-by-step guide to set up a new single-module Android project with
   Clean Architecture, Hilt, Compose, Navigation 3, supabase-kt, and OkHttp.
   Include DataStore prefs and Room. Do not scaffold Retrofit. Triggers: create single module project,
-  setup single module, new android project, buat project baru,
-  setup project android, single module setup.
-  Only for files under HealthTrack/.
-paths:
-  - "HealthTrack/**"
+  setup single module, new android project, setup android project, single module setup.
 ---
 
 # Setup Single-Module Android Project

@@ -4,10 +4,7 @@ description: >-
   Step-by-step guide to create a new feature (screen) in single-module architecture.
   Includes package creation, ViewModel, Screen, navigation route.
   Triggers: create feature single module, new screen single module, add feature,
-  buat fitur baru, tambah screen, new page.
-  Only for files under HealthTrack/.
-paths:
-  - "HealthTrack/**"
+  new feature, add screen, new page.
 ---
 
 # Create New Feature (Single-Module)
