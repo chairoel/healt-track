@@ -249,7 +249,7 @@ class ProfileRepositoryImpl @Inject constructor(
 ## Step 7: Hilt
 
 ```kotlin
-// di/RepositoryModule.kt
+// data/di/RepositoryModule.kt
 @Binds
 @Singleton
 abstract fun bindProfileRepository(impl: ProfileRepositoryImpl): ProfileRepository
@@ -385,7 +385,7 @@ data/model/request/ProfileOnboardingRequest.kt
 data/datasource/remote/ProfileRemoteDataSource.kt
 data/mapper/ProfileMapper.kt
 data/repository/ProfileRepositoryImpl.kt
-di/RepositoryModule.kt
+data/di/RepositoryModule.kt
 test/.../data/mapper/ProfileMapperTest.kt
 test/.../domain/usecase/CompleteOnboardingUseCaseTest.kt
 ```

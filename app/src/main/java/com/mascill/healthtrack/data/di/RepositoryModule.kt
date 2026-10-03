@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.di
+package com.mascill.healthtrack.data.di
 
 import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
 import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
