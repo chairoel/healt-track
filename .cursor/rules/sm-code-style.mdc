@@ -65,10 +65,14 @@ class ProfileRepositoryImpl @Inject constructor(
     private val dispatcher: AppDispatcher,
 ) : ProfileRepository
 
-class GetProfileUseCase @Inject constructor(
+class GetProfileUseCase(
     private val repository: ProfileRepository,
 )
+```
 
+Use cases are created in `domain/di` with `@Provides`. The use case constructor has no `@Inject`. `@Inject` on the same class duplicates the binding.
+
+```kotlin
 @HiltViewModel
 class HomeViewModel @Inject constructor(...)
 
@@ -79,6 +83,8 @@ data class HomeUIState(...)
 ```
 
 DTOs use `@Serializable` / `@SerialName`, **not** Moshi `@Json`.
+
+A use case exposes one public function, `operator fun invoke`. Other functions on that class are private. A use case may call another use case.
 
 ## Function Naming
 
