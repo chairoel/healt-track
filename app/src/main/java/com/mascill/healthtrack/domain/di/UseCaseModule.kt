@@ -16,7 +16,7 @@ import java.util.Optional
 
 /**
  * Provides the measurement use cases.
- * [MeasurementRepository] stays empty until Room binds it in `data/di/RepositoryModule`.
+ * Room binds [MeasurementRepository], so [provideCloseMeasurementUseCase] saves a finished report.
  */
 @Module
 @InstallIn(SingletonComponent::class)

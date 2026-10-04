@@ -1,15 +1,20 @@
 package com.mascill.healthtrack.domain.repository
 
 import com.mascill.healthtrack.domain.model.MeasurementResult
+import com.mascill.healthtrack.domain.model.StoredMeasurement
 
 /**
- * Stores one finished measurement.
- * Room implements this later. Until then, [com.mascill.healthtrack.data.di.RepositoryModule]
- * exposes this type as an empty optional. Tests in this phase use an in-memory stand-in.
+ * Stores finished measurements in Room.
+ * [list] returns the newest row first.
  */
 interface MeasurementRepository {
     /**
      * Persists [result] and returns the stored row id.
      */
     fun save(result: MeasurementResult): Int
+
+    /**
+     * Stored measurements, greatest id first.
+     */
+    fun list(): List<StoredMeasurement>
 }

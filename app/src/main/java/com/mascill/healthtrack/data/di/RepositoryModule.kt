@@ -1,7 +1,10 @@
 package com.mascill.healthtrack.data.di
 
+import com.mascill.healthtrack.data.repository.BodyRepositoryImpl
+import com.mascill.healthtrack.data.repository.MeasurementRepositoryImpl
 import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
 import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
+import com.mascill.healthtrack.domain.repository.BodyRepository
 import com.mascill.healthtrack.domain.repository.MeasurementRepository
 import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
 import com.mascill.healthtrack.domain.repository.ScaleGattRepository
@@ -28,9 +31,24 @@ abstract class RepositoryModule {
         impl: ScaleGattRepositoryImpl,
     ): ScaleGattRepository
 
+    @Binds
+    @Singleton
+    abstract fun bindBodyRepository(
+        impl: BodyRepositoryImpl,
+    ): BodyRepository
+
     /**
-     * Empty until Room binds [MeasurementRepository].
-     * [CloseMeasurementUseCase] skips save while this optional is empty.
+     * Room implementation. Fills the optional consumed by [CloseMeasurementUseCase].
+     */
+    @Binds
+    @Singleton
+    abstract fun bindMeasurementRepository(
+        impl: MeasurementRepositoryImpl,
+    ): MeasurementRepository
+
+    /**
+     * Present because [bindMeasurementRepository] supplies the Room implementation.
+     * [CloseMeasurementUseCase] calls save while this optional is present.
      */
     @BindsOptionalOf
     abstract fun measurementRepository(): MeasurementRepository

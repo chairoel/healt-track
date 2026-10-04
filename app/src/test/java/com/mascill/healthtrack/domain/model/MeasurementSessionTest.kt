@@ -214,6 +214,15 @@ private class MemoryMeasurementRepository : MeasurementRepository {
         saved += result
         return saved.size
     }
+
+    override fun list(): List<StoredMeasurement> =
+        saved.mapIndexed { index, result ->
+            StoredMeasurement(
+                id = index + 1,
+                createdAt = "",
+                result = result,
+            )
+        }.asReversed()
 }
 
 private fun prop(lock: Int = 1): Int = "0000000$lock".toInt(2)

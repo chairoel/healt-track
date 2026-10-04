@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.ui.theme
+package com.mascill.healthtrack.presentation.theme
 
 import androidx.compose.ui.graphics.Color
 
