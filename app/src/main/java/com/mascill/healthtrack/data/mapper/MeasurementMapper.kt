@@ -1,6 +1,6 @@
 package com.mascill.healthtrack.data.mapper
 
-import com.mascill.healthtrack.data.datasource.local.utcTimestamp
+import com.mascill.healthtrack.data.util.utcTimestamp
 import com.mascill.healthtrack.data.model.StoredReport
 import com.mascill.healthtrack.data.model.entity.MeasurementEntity
 import com.mascill.healthtrack.domain.model.MeasurementResult

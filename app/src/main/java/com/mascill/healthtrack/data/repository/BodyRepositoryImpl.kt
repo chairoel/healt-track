@@ -1,6 +1,6 @@
 package com.mascill.healthtrack.data.repository
 
-import com.mascill.healthtrack.data.datasource.local.BodyDao
+import com.mascill.healthtrack.data.datasource.local.dao.BodyDao
 import com.mascill.healthtrack.data.mapper.toBody
 import com.mascill.healthtrack.data.mapper.toEntity
 import com.mascill.healthtrack.domain.model.BodyData

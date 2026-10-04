@@ -1,13 +1,19 @@
 package com.mascill.healthtrack.domain.di
 
 import com.mascill.healthtrack.domain.repository.MeasurementRepository
+import com.mascill.healthtrack.domain.repository.ScaleGattRepository
+import com.mascill.healthtrack.domain.repository.ScaleRadioRepository
+import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
 import com.mascill.healthtrack.domain.usecase.AcceptGattUseCase
 import com.mascill.healthtrack.domain.usecase.AcceptTransmissionUseCase
 import com.mascill.healthtrack.domain.usecase.ApplyBroadcastWeightUseCase
 import com.mascill.healthtrack.domain.usecase.CalculateReportUseCase
 import com.mascill.healthtrack.domain.usecase.CloseMeasurementUseCase
 import com.mascill.healthtrack.domain.usecase.DisplayMeasurementUseCase
+import com.mascill.healthtrack.domain.usecase.MeasureScale
+import com.mascill.healthtrack.domain.usecase.MeasureScaleUseCase
 import com.mascill.healthtrack.domain.usecase.MeasurementStateUseCase
+import com.mascill.healthtrack.util.ElapsedClock
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -80,5 +86,30 @@ class UseCaseModule {
         closeMeasurement: CloseMeasurementUseCase,
     ): ApplyBroadcastWeightUseCase = ApplyBroadcastWeightUseCase(
         closeMeasurement = closeMeasurement,
+    )
+
+    /**
+     * Provides [MeasureScaleUseCase].
+     * The radio stays in data. This use case applies accepted frames.
+     */
+    @Provides
+    fun provideMeasureScaleUseCase(
+        radio: ScaleRadioRepository,
+        transmissions: ScaleTransmissionRepository,
+        gattFrames: ScaleGattRepository,
+        acceptTransmission: AcceptTransmissionUseCase,
+        acceptGatt: AcceptGattUseCase,
+        applyBroadcastWeight: ApplyBroadcastWeightUseCase,
+        measurementState: MeasurementStateUseCase,
+        clock: ElapsedClock,
+    ): MeasureScaleUseCase = MeasureScale(
+        radio = radio,
+        transmissions = transmissions,
+        gattFrames = gattFrames,
+        acceptTransmission = acceptTransmission,
+        acceptGatt = acceptGatt,
+        applyBroadcastWeight = applyBroadcastWeight,
+        measurementState = measurementState,
+        clock = clock,
     )
 }

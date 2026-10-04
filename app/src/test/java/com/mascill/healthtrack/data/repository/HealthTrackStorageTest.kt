@@ -4,7 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import com.mascill.healthtrack.data.datasource.local.HealthTrackDatabase
+import com.mascill.healthtrack.data.datasource.local.database.HealthTrackDatabase
 import com.mascill.healthtrack.domain.model.BodyData
 import com.mascill.healthtrack.domain.model.MeasurementResult
 import com.mascill.healthtrack.domain.model.V235Report

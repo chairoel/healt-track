@@ -28,6 +28,13 @@ fun bytesToInt(raw: ByteArray): Int {
     return value
 }
 
+/**
+ * Lowercase hex of each byte, with no separator.
+ */
+fun ByteArray.toHex(): String = joinToString(separator = "") { byte ->
+    "%02x".format(byte.u8())
+}
+
 internal fun bits(value: Int): String {
     val byte = value and LOW_BYTE
     return buildString(BIT_COUNT) {

@@ -1,5 +1,6 @@
-package com.mascill.healthtrack.data.datasource.ble
+package com.mascill.healthtrack.data.datasource
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -17,11 +18,11 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import androidx.core.util.size
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import androidx.core.util.size
 
 /**
  * Chipsea notify characteristic. The session reads this and does not write the TX characteristic
@@ -34,71 +35,12 @@ private val CLIENT_CONFIG: UUID = UUID.fromString("00002902-0000-1000-8000-00805
 private const val AUTO_CONNECT = false
 
 /**
- * Delivers one manufacturer block from a scan result.
- * Return true when the block is a scale payload so later blocks in that result are skipped.
- */
-interface ScanSink {
-    /**
-     * [companyId] plus [remainder] from one manufacturer AD structure.
-     */
-    fun onManufacturer(
-        address: String,
-        companyId: Int,
-        remainder: ByteArray,
-        connectable: Boolean,
-    ): Boolean
-
-    /**
-     * Raw advertisement bytes when no manufacturer block was accepted.
-     */
-    fun onRecord(address: String, record: ByteArray, connectable: Boolean)
-
-    /**
-     * The scanner reported a failure other than an already-started scan.
-     */
-    fun onScanFailed()
-}
-
-/**
- * GATT events for one connection attempt.
- * Callbacks may arrive on a binder thread.
- */
-interface ConnectSink {
-    /**
-     * A copied RX notification.
-     */
-    fun onNotification(value: ByteArray)
-
-    /**
-     * RX notify is enabled.
-     */
-    fun onNotifyReady()
-
-    /**
-     * The link dropped after a clean disconnect.
-     */
-    fun onLinkLost()
-
-    /**
-     * The Chipsea service or RX characteristic is absent.
-     */
-    fun onNotifyMissing()
-
-    /**
-     * Connect, discovery, or the notify descriptor failed.
-     */
-    fun onFailed()
-}
-
-/**
- * Platform scan and GATT for one scale session.
- * [connect] uses [AUTO_CONNECT] so scanning and `connectGatt` are not left running together.
- * Callers stop the scan before [connect] and start it again after [ConnectSink.onNotifyReady].
+ * [BleDataSource] on the phone radio.
  */
 @Singleton
-class BleSession @Inject constructor(
+class BleDataSourceImpl @Inject constructor(
     @param:ApplicationContext private val context: Context,
-) {
+) : BleDataSource {
     private val lock = Any()
     private val devices = HashMap<String, BluetoothDevice>()
     private var scanToken = 0
@@ -107,35 +49,32 @@ class BleSession @Inject constructor(
     private var gatt: BluetoothGatt? = null
 
     @Volatile
-    private var scanSink: ScanSink? = null
+    private var scanHandlers: ScanHandlers? = null
 
     @Volatile
-    private var connectSink: ConnectSink? = null
+    private var connectHandlers: ConnectHandlers? = null
 
-    /**
-     * True when the radio exists and is switched on.
-     */
-    fun bluetoothEnabled(): Boolean {
+    override fun bluetoothEnabled(): Boolean {
         return try {
             adapter()?.isEnabled == true
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             false
         }
     }
 
-    /**
-     * Starts a low-latency scan. Stops a scan that is already running.
-     * Returns false when Bluetooth is off or scan permission is missing.
-     */
     @SuppressLint("MissingPermission")
-    fun startScan(sink: ScanSink): Boolean {
+    override fun startScan(
+        onManufacturer: (String, Int, ByteArray, Boolean) -> Boolean,
+        onRecord: (String, ByteArray, Boolean) -> Unit,
+        onScanFailed: () -> Unit,
+    ): Boolean {
         if (!bluetoothEnabled() || !canScan()) {
             return false
         }
         stopScan()
         val radio = adapter()?.bluetoothLeScanner ?: return false
         val token = synchronized(lock) { scanToken }
-        scanSink = sink
+        scanHandlers = ScanHandlers(onManufacturer, onRecord, onScanFailed)
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 handleResult(token, result)
@@ -152,7 +91,7 @@ class BleSession @Inject constructor(
                 if (!scanLive(token)) {
                     return
                 }
-                scanSink?.onScanFailed()
+                scanHandlers?.onScanFailed?.invoke()
             }
         }
         val settings = ScanSettings.Builder()
@@ -169,51 +108,56 @@ class BleSession @Inject constructor(
                     true
                 }
             }
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             false
-        } catch (error: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             false
         }
     }
 
-    /**
-     * Stops the active scan. A callback that belongs to this scan is ignored afterwards.
-     */
     @SuppressLint("MissingPermission")
-    fun stopScan() {
+    override fun stopScan() {
         val previous = synchronized(lock) {
             scanToken += 1
             scannerCallback.also { scannerCallback = null }
         }
-        scanSink = null
+        scanHandlers = null
         if (previous == null) {
             return
         }
         val radio = adapter()?.bluetoothLeScanner ?: return
         try {
             radio.stopScan(previous)
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             // Permission is already gone.
-        } catch (error: IllegalStateException) {
+        } catch (_: IllegalStateException) {
             // The adapter was switched off.
         }
     }
 
-    /**
-     * Connects [address] with [AUTO_CONNECT].
-     * Returns false when the device or the connect permission is missing.
-     * Later failures are reported through [sink].
-     */
     @Suppress("DEPRECATION")
     @SuppressLint("MissingPermission")
-    fun connect(address: String, sink: ConnectSink): Boolean {
+    override fun connect(
+        address: String,
+        onNotification: (ByteArray) -> Unit,
+        onNotifyReady: () -> Unit,
+        onLinkLost: () -> Unit,
+        onNotifyMissing: () -> Unit,
+        onFailed: () -> Unit,
+    ): Boolean {
         if (!bluetoothEnabled() || !canConnectRadio()) {
             return false
         }
         disconnect()
         val device = findDevice(address) ?: return false
         val token = synchronized(lock) { gattToken }
-        connectSink = sink
+        connectHandlers = ConnectHandlers(
+            onNotification,
+            onNotifyReady,
+            onLinkLost,
+            onNotifyMissing,
+            onFailed,
+        )
         val callback = GattCallback(token)
         return try {
             val created = device.connectGatt(
@@ -231,21 +175,18 @@ class BleSession @Inject constructor(
                     true
                 }
             }
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             false
-        } catch (error: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             false
         }
     }
 
-    /**
-     * Drops the current GATT client. Callbacks from that client are ignored.
-     */
     @SuppressLint("MissingPermission")
-    fun disconnect() {
+    override fun disconnect() {
         val previous = synchronized(lock) {
             gattToken += 1
-            connectSink = null
+            connectHandlers = null
             gatt.also { gatt = null }
         }
         if (previous == null) {
@@ -253,20 +194,17 @@ class BleSession @Inject constructor(
         }
         try {
             previous.disconnect()
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             // Permission is already gone.
         }
         try {
             previous.close()
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             // The client is already closed.
         }
     }
 
-    /**
-     * Stops scanning, closes GATT, and forgets devices seen in this session.
-     */
-    fun stop() {
+    override fun stop() {
         stopScan()
         disconnect()
         synchronized(lock) { devices.clear() }
@@ -276,11 +214,11 @@ class BleSession @Inject constructor(
         if (!scanLive(token)) {
             return
         }
-        val sink = scanSink ?: return
+        val handlers = scanHandlers ?: return
         val record = result.scanRecord ?: return
         val address = try {
             result.device.address
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             return
         }
         if (address.isNullOrEmpty()) {
@@ -293,7 +231,7 @@ class BleSession @Inject constructor(
         if (sparse != null) {
             for (index in 0 until sparse.size) {
                 val remainder = sparse.valueAt(index)?.copyOf() ?: continue
-                if (sink.onManufacturer(address, sparse.keyAt(index), remainder, connectable)) {
+                if (handlers.onManufacturer(address, sparse.keyAt(index), remainder, connectable)) {
                     accepted = true
                     break
                 }
@@ -301,7 +239,7 @@ class BleSession @Inject constructor(
         }
         if (!accepted) {
             val raw = record.bytes?.copyOf() ?: return
-            sink.onRecord(address, raw, connectable)
+            handlers.onRecord(address, raw, connectable)
         }
     }
 
@@ -319,7 +257,7 @@ class BleSession @Inject constructor(
         val radio = adapter() ?: return null
         return try {
             radio.getRemoteDevice(address)
-        } catch (error: IllegalArgumentException) {
+        } catch (_: IllegalArgumentException) {
             null
         }
     }
@@ -331,18 +269,18 @@ class BleSession @Inject constructor(
 
     private fun canScan(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            granted(android.Manifest.permission.BLUETOOTH_SCAN)
+            granted(Manifest.permission.BLUETOOTH_SCAN)
         } else {
-            granted(android.Manifest.permission.BLUETOOTH) &&
-                granted(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            granted(Manifest.permission.BLUETOOTH) &&
+                granted(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
 
     private fun canConnectRadio(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            granted(android.Manifest.permission.BLUETOOTH_CONNECT)
+            granted(Manifest.permission.BLUETOOTH_CONNECT)
         } else {
-            granted(android.Manifest.permission.BLUETOOTH)
+            granted(Manifest.permission.BLUETOOTH)
         }
     }
 
@@ -361,21 +299,21 @@ class BleSession @Inject constructor(
                 newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS -> {
                     val started = try {
                         gatt.discoverServices()
-                    } catch (error: SecurityException) {
+                    } catch (_: SecurityException) {
                         false
                     }
                     if (!started) {
-                        connectSink?.onFailed()
+                        connectHandlers?.onFailed?.invoke()
                     }
                 }
                 newState == BluetoothProfile.STATE_DISCONNECTED -> {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
-                        connectSink?.onLinkLost()
+                        connectHandlers?.onLinkLost?.invoke()
                     } else {
-                        connectSink?.onFailed()
+                        connectHandlers?.onFailed?.invoke()
                     }
                 }
-                status != BluetoothGatt.GATT_SUCCESS -> connectSink?.onFailed()
+                status != BluetoothGatt.GATT_SUCCESS -> connectHandlers?.onFailed?.invoke()
             }
         }
 
@@ -384,12 +322,12 @@ class BleSession @Inject constructor(
                 return
             }
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                connectSink?.onFailed()
+                connectHandlers?.onFailed?.invoke()
                 return
             }
             val rx = gatt.getService(CHIPSEA_SERVICE)?.getCharacteristic(CHIPSEA_RX)
             if (rx == null) {
-                connectSink?.onNotifyMissing()
+                connectHandlers?.onNotifyMissing?.invoke()
                 return
             }
             enableNotify(gatt, rx)
@@ -425,9 +363,9 @@ class BleSession @Inject constructor(
                 return
             }
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                connectSink?.onNotifyReady()
+                connectHandlers?.onNotifyReady?.invoke()
             } else {
-                connectSink?.onFailed()
+                connectHandlers?.onFailed?.invoke()
             }
         }
 
@@ -438,26 +376,26 @@ class BleSession @Inject constructor(
                 rx.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0 ->
                     BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
                 else -> {
-                    connectSink?.onNotifyMissing()
+                    connectHandlers?.onNotifyMissing?.invoke()
                     return
                 }
             }
             val enabled = try {
                 gatt.setCharacteristicNotification(rx, true)
-            } catch (error: SecurityException) {
+            } catch (_: SecurityException) {
                 false
             }
             if (!enabled) {
-                connectSink?.onFailed()
+                connectHandlers?.onFailed?.invoke()
                 return
             }
             val descriptor = rx.getDescriptor(CLIENT_CONFIG)
             if (descriptor == null) {
-                connectSink?.onNotifyMissing()
+                connectHandlers?.onNotifyMissing?.invoke()
                 return
             }
             if (!writeConfig(gatt, descriptor, value)) {
-                connectSink?.onFailed()
+                connectHandlers?.onFailed?.invoke()
             }
         }
 
@@ -476,7 +414,7 @@ class BleSession @Inject constructor(
                     @Suppress("DEPRECATION")
                     gatt.writeDescriptor(descriptor)
                 }
-            } catch (error: SecurityException) {
+            } catch (_: SecurityException) {
                 false
             }
         }
@@ -489,11 +427,25 @@ class BleSession @Inject constructor(
             if (!live() || characteristic.uuid != CHIPSEA_RX) {
                 return
             }
-            connectSink?.onNotification(value.copyOf())
+            connectHandlers?.onNotification?.invoke(value.copyOf())
         }
 
         private fun live(): Boolean {
             return synchronized(lock) { token == gattToken }
         }
     }
+
+    private class ScanHandlers(
+        val onManufacturer: (String, Int, ByteArray, Boolean) -> Boolean,
+        val onRecord: (String, ByteArray, Boolean) -> Unit,
+        val onScanFailed: () -> Unit,
+    )
+
+    private class ConnectHandlers(
+        val onNotification: (ByteArray) -> Unit,
+        val onNotifyReady: () -> Unit,
+        val onLinkLost: () -> Unit,
+        val onNotifyMissing: () -> Unit,
+        val onFailed: () -> Unit,
+    )
 }

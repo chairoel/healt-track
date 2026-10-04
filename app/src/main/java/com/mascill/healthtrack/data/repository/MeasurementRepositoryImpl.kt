@@ -1,6 +1,6 @@
 package com.mascill.healthtrack.data.repository
 
-import com.mascill.healthtrack.data.datasource.local.MeasurementDao
+import com.mascill.healthtrack.data.datasource.local.dao.MeasurementDao
 import com.mascill.healthtrack.data.mapper.toEntity
 import com.mascill.healthtrack.data.mapper.toStoredMeasurement
 import com.mascill.healthtrack.domain.model.MeasurementResult

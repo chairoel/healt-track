@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.data.datasource.ble
+package com.mascill.healthtrack.domain.usecase
 
 import com.mascill.healthtrack.domain.model.EncryptedTransmissionError
 import com.mascill.healthtrack.domain.model.FrameFormatError
@@ -7,18 +7,15 @@ import com.mascill.healthtrack.domain.model.MeasurementSession
 import com.mascill.healthtrack.domain.model.ScaleGatt
 import com.mascill.healthtrack.domain.repository.ScaleGattRepository
 import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
-import com.mascill.healthtrack.domain.usecase.AcceptGattUseCase
-import com.mascill.healthtrack.domain.usecase.AcceptTransmissionUseCase
-import com.mascill.healthtrack.domain.usecase.ApplyBroadcastWeightUseCase
 
 private const val LOCKED = 1
+private const val LOW_BYTE = 0xFF
 
 /**
- * Forwards one scale's advertisement payloads and GATT notifications into [session].
+ * Applies one scale's advertisement payloads and GATT notifications to [session].
  * Parsing goes through [ScaleTransmissionRepository] and [ScaleGattRepository].
- * This class does not import Android types, so host tests can run it.
  */
-class SessionListener(
+internal class ScaleFrames(
     private val session: MeasurementSession,
     private val transmissions: ScaleTransmissionRepository,
     private val gattFrames: ScaleGattRepository,
@@ -179,22 +176,29 @@ class SessionListener(
         }
         ready = true
     }
-
-    private data class BroadcastSign(
-        val locked: Boolean,
-        val impedanceOhm: Float?,
-        val weightKg: Float,
-    )
-
-    private data class GattSign(
-        val lockFlag: Int,
-        val history: Boolean,
-        val weightKg: Double,
-    )
 }
 
-private fun ByteArray.toHex(): String {
-    return joinToString(separator = "") { byte ->
-        "%02x".format(byte.toInt() and 0xFF)
-    }
+/**
+ * Fields that decide whether a broadcast line is new.
+ */
+private data class BroadcastSign(
+    val locked: Boolean,
+    val impedanceOhm: Float?,
+    val weightKg: Float,
+)
+
+/**
+ * Fields that decide whether a GATT line is new.
+ */
+private data class GattSign(
+    val lockFlag: Int,
+    val history: Boolean,
+    val weightKg: Double,
+)
+
+/**
+ * Lowercase hex of each byte, with no separator.
+ */
+private fun ByteArray.toHex(): String = joinToString(separator = "") { byte ->
+    "%02x".format(byte.toInt() and LOW_BYTE)
 }

@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.data.datasource.local
+package com.mascill.healthtrack.data.datasource.local.dao
 
 import androidx.room.Dao
 import androidx.room.Insert

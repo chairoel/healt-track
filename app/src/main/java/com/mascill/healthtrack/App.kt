@@ -1,7 +1,7 @@
 package com.mascill.healthtrack
 
 import android.app.Application
-import com.mascill.healthtrack.data.datasource.local.HealthTrackPreferences
+import com.mascill.healthtrack.data.datasource.local.datastore.HealthTrackPreferences
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 

@@ -3,7 +3,7 @@ package com.mascill.healthtrack.presentation.session
 import com.mascill.healthtrack.domain.model.BodyData
 import com.mascill.healthtrack.domain.model.ScaleSessionStatus
 import com.mascill.healthtrack.domain.repository.BodyRepository
-import com.mascill.healthtrack.domain.repository.ScaleSessionRepository
+import com.mascill.healthtrack.domain.usecase.MeasureScaleUseCase
 import com.mascill.healthtrack.presentation.session.model.FinishedSession
 import com.mascill.healthtrack.util.AppDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -60,8 +60,8 @@ class SessionViewModelTest {
 
     @Test
     fun startWithProfileRequestsPermissionWithoutMeasuring() = runTest(testDispatcher) {
-        val sessions = FakeScaleSessionRepository()
-        val viewModel = viewModel(latest = profile(), sessions = sessions)
+        val measure = FakeMeasureScale()
+        val viewModel = viewModel(latest = profile(), measure = measure)
         advanceUntilIdle()
 
         viewModel.onStartClick()
@@ -73,15 +73,15 @@ class SessionViewModelTest {
         assertTrue(state.isFlowOpen)
         assertNull(state.error)
         assertEquals(1, state.permissionRequestId)
-        assertNull(sessions.started)
+        assertNull(measure.started)
     }
 
     @Test
     fun grantedPermissionStartsMeasuring() = runTest(testDispatcher) {
-        val sessions = FakeScaleSessionRepository(
+        val measure = FakeMeasureScale(
             status = ScaleSessionStatus(running = true, stateLabel = "menunggu impedansi"),
         )
-        val viewModel = viewModel(latest = profile(), sessions = sessions)
+        val viewModel = viewModel(latest = profile(), measure = measure)
         advanceUntilIdle()
         viewModel.onStartClick()
         advanceUntilIdle()
@@ -92,14 +92,14 @@ class SessionViewModelTest {
         val state = viewModel.uiState.value
         assertTrue(state.isMeasuring)
         assertEquals("menunggu impedansi", state.stateLabel)
-        assertEquals(profile(), sessions.started)
+        assertEquals(profile(), measure.started)
         viewModel.onHostStop()
     }
 
     @Test
     fun bluetoothOffShowsMessage() = runTest(testDispatcher) {
-        val sessions = FakeScaleSessionRepository(bluetoothOn = false)
-        val viewModel = viewModel(latest = profile(), sessions = sessions)
+        val measure = FakeMeasureScale(bluetoothOn = false)
+        val viewModel = viewModel(latest = profile(), measure = measure)
         advanceUntilIdle()
         viewModel.onStartClick()
         advanceUntilIdle()
@@ -113,14 +113,14 @@ class SessionViewModelTest {
 
     @Test
     fun connectionTimeoutShowsOkokMessage() = runTest(testDispatcher) {
-        val sessions = FakeScaleSessionRepository(
+        val measure = FakeMeasureScale(
             status = ScaleSessionStatus(
                 running = true,
                 stateLabel = "menunggu berat",
                 connectionTimedOut = true,
             ),
         )
-        val viewModel = viewModel(latest = profile(), sessions = sessions)
+        val viewModel = viewModel(latest = profile(), measure = measure)
         advanceUntilIdle()
         viewModel.onStartClick()
         advanceUntilIdle()
@@ -137,7 +137,7 @@ class SessionViewModelTest {
 
     @Test
     fun storedResultOpensTheResultScreen() = runTest(testDispatcher) {
-        val sessions = FakeScaleSessionRepository(
+        val measure = FakeMeasureScale(
             status = ScaleSessionStatus(
                 running = true,
                 stateLabel = "selesai",
@@ -147,7 +147,7 @@ class SessionViewModelTest {
                 gattHex = "ca",
             ),
         )
-        val viewModel = viewModel(latest = profile(), sessions = sessions)
+        val viewModel = viewModel(latest = profile(), measure = measure)
         val opened = mutableListOf<FinishedSession>()
         val collectJob = launch { viewModel.openResult.collect { opened += it } }
         advanceUntilIdle()
@@ -172,11 +172,11 @@ class SessionViewModelTest {
 
     private fun viewModel(
         latest: BodyData?,
-        sessions: ScaleSessionRepository = FakeScaleSessionRepository(),
+        measure: MeasureScaleUseCase = FakeMeasureScale(),
     ): SessionViewModel {
         return SessionViewModel(
             bodyRepository = FakeBodyRepository(latest),
-            sessionRepository = sessions,
+            measure = measure,
             dispatcher = appDispatcher,
         )
     }
@@ -184,23 +184,20 @@ class SessionViewModelTest {
     private fun profile(): BodyData = BodyData(heightCm = 166.0, age = 29, sex = 1)
 }
 
-private class FakeScaleSessionRepository(
+private class FakeMeasureScale(
     var bluetoothOn: Boolean = true,
     var status: ScaleSessionStatus = ScaleSessionStatus(),
-) : ScaleSessionRepository {
+) : MeasureScaleUseCase {
     var started: BodyData? = null
 
-    override fun observe(): Flow<ScaleSessionStatus> = flow { emit(status) }
-
-    override fun start(body: BodyData): Boolean {
-        if (!bluetoothOn) {
-            return false
-        }
+    override fun invoke(body: BodyData): Flow<ScaleSessionStatus> = flow {
         started = body
-        return true
+        if (!bluetoothOn) {
+            emit(ScaleSessionStatus(bluetoothOff = true, heightCm = body.heightCm))
+            return@flow
+        }
+        emit(status)
     }
-
-    override fun stop() = Unit
 }
 
 private class FakeBodyRepository(

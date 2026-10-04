@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.data.datasource.local
+package com.mascill.healthtrack.data.datasource.local.datastore
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences

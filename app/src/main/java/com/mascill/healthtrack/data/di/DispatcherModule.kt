@@ -1,6 +1,8 @@
 package com.mascill.healthtrack.data.di
 
+import android.os.SystemClock
 import com.mascill.healthtrack.util.AppDispatcher
+import com.mascill.healthtrack.util.ElapsedClock
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,4 +26,11 @@ object DispatcherModule {
         main = Dispatchers.Main,
         default = Dispatchers.Default,
     )
+
+    /**
+     * Monotonic clock for measurement deadlines.
+     */
+    @Provides
+    @Singleton
+    fun provideElapsedClock(): ElapsedClock = ElapsedClock { SystemClock.elapsedRealtime() }
 }

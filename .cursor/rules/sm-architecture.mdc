@@ -69,12 +69,13 @@ presentation → domain → data
 
 ### ALLOWED
 - `presentation` → `domain` (UseCases, repository interfaces, domain models)
-- `data` → `domain`
+- `data` → `domain` models and repository interfaces
 - Any layer → `util`, `di`
 
 ### FORBIDDEN
 - `domain` → `data` / `presentation`
 - `data` → `presentation`
+- `data` calling `domain.usecase`
 - `presentation` or `domain` importing `io.github.jan.supabase`
 
 ## Feature Package Structure

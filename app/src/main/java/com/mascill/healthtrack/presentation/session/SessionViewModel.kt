@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mascill.healthtrack.domain.model.BodyData
 import com.mascill.healthtrack.domain.model.ScaleSessionStatus
 import com.mascill.healthtrack.domain.repository.BodyRepository
-import com.mascill.healthtrack.domain.repository.ScaleSessionRepository
+import com.mascill.healthtrack.domain.usecase.MeasureScaleUseCase
 import com.mascill.healthtrack.presentation.common.model.AppError
 import com.mascill.healthtrack.presentation.session.model.FinishedSession
 import com.mascill.healthtrack.presentation.session.model.SessionUIState
@@ -13,6 +13,7 @@ import com.mascill.healthtrack.util.AppDispatcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +29,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SessionViewModel @Inject constructor(
     private val bodyRepository: BodyRepository,
-    private val sessionRepository: ScaleSessionRepository,
+    private val measure: MeasureScaleUseCase,
     private val dispatcher: AppDispatcher,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SessionUIState())
@@ -95,16 +96,10 @@ class SessionViewModel @Inject constructor(
      */
     fun onPermissionsGranted() {
         val body = pendingBody ?: return
-        sessionJob?.cancel()
+        val previous = sessionJob
         sessionJob = viewModelScope.launch(dispatcher.main) {
-            val started = sessionRepository.start(body)
-            if (!started) {
-                _uiState.update {
-                    it.copy(isMeasuring = false, error = AppError(BLUETOOTH_OFF))
-                }
-                return@launch
-            }
-            sessionRepository.observe().collect { status ->
+            previous?.cancelAndJoin()
+            measure(body).collect { status ->
                 val finishedId = status.measurementId
                 _uiState.update {
                     it.copy(
@@ -158,15 +153,12 @@ class SessionViewModel @Inject constructor(
 
     override fun onCleared() {
         sessionJob?.cancel()
-        sessionRepository.stop()
         results.close()
         super.onCleared()
     }
 
     private fun stopMeasuring() {
-        sessionRepository.stop()
         sessionJob?.cancel()
-        sessionJob = null
         _uiState.update { it.copy(isMeasuring = false) }
     }
 

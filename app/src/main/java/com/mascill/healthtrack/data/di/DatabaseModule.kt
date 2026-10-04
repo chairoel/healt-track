@@ -2,9 +2,9 @@ package com.mascill.healthtrack.data.di
 
 import android.content.Context
 import androidx.room.Room
-import com.mascill.healthtrack.data.datasource.local.BodyDao
-import com.mascill.healthtrack.data.datasource.local.HealthTrackDatabase
-import com.mascill.healthtrack.data.datasource.local.MeasurementDao
+import com.mascill.healthtrack.data.datasource.local.dao.BodyDao
+import com.mascill.healthtrack.data.datasource.local.database.HealthTrackDatabase
+import com.mascill.healthtrack.data.datasource.local.dao.MeasurementDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

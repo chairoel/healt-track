@@ -1,7 +1,9 @@
-package com.mascill.healthtrack.data.datasource.local
+package com.mascill.healthtrack.data.datasource.local.database
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.mascill.healthtrack.data.datasource.local.dao.MeasurementDao
+import com.mascill.healthtrack.data.datasource.local.dao.BodyDao
 import com.mascill.healthtrack.data.model.entity.BodyEntity
 import com.mascill.healthtrack.data.model.entity.MeasurementEntity
 
