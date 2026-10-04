@@ -14,11 +14,11 @@ interface MeasurementDao {
      * Inserts [entity] and returns the new row id.
      */
     @Insert
-    fun insert(entity: MeasurementEntity): Long
+    suspend fun insert(entity: MeasurementEntity): Long
 
     /**
      * All rows, greatest id first.
      */
     @Query("SELECT * FROM measurement ORDER BY id DESC")
-    fun listNewestFirst(): List<MeasurementEntity>
+    suspend fun listNewestFirst(): List<MeasurementEntity>
 }

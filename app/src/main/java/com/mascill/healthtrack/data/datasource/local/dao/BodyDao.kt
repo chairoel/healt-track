@@ -14,11 +14,11 @@ interface BodyDao {
      * Inserts [entity] and returns the new row id.
      */
     @Insert
-    fun insert(entity: BodyEntity): Long
+    suspend fun insert(entity: BodyEntity): Long
 
     /**
      * The row with the greatest id, or null when the table is empty.
      */
     @Query("SELECT * FROM body ORDER BY id DESC LIMIT 1")
-    fun latest(): BodyEntity?
+    suspend fun latest(): BodyEntity?
 }

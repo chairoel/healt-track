@@ -11,10 +11,10 @@ interface BodyRepository {
      * Inserts [body] and returns the new row id.
      * [BodyData] rejects a sex other than 0 or 1 before this insert.
      */
-    fun save(body: BodyData): Int
+    suspend fun save(body: BodyData): Int
 
     /**
      * The newest profile, or null when no row exists.
      */
-    fun latest(): BodyData?
+    suspend fun latest(): BodyData?
 }

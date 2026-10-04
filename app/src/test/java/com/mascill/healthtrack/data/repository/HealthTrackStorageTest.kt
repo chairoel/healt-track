@@ -12,6 +12,8 @@ import com.mascill.healthtrack.util.AppDispatcher
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -23,6 +25,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], application = Application::class)
 class HealthTrackStorageTest {
@@ -51,7 +54,7 @@ class HealthTrackStorageTest {
     }
 
     @Test
-    fun sexTwoIsRejectedBeforeInsert() {
+    fun sexTwoIsRejectedBeforeInsert() = runTest {
         assertThrows(IllegalArgumentException::class.java) {
             BodyData(heightCm = 166.0, age = 29, sex = 2)
         }
@@ -59,7 +62,7 @@ class HealthTrackStorageTest {
     }
 
     @Test
-    fun saveProfileThenLoadLatest() {
+    fun saveProfileThenLoadLatest() = runTest {
         val firstId = bodyRepository.save(BodyData(heightCm = 166.0, age = 29, sex = 1))
         val secondId = bodyRepository.save(BodyData(heightCm = 170.0, age = 40, sex = 0))
 
@@ -73,7 +76,7 @@ class HealthTrackStorageTest {
     }
 
     @Test
-    fun saveMeasurementReadsReportJson() {
+    fun saveMeasurementReadsReportJson() = runTest {
         val report = V235Report(
             bfp = 1.5,
             slm = 2.5,

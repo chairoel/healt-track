@@ -1,28 +1,32 @@
 package com.mascill.healthtrack.domain.usecase
 
 import com.mascill.healthtrack.domain.model.GattResult
-import com.mascill.healthtrack.domain.model.MeasurementSession
-import com.mascill.healthtrack.domain.model.ScaleGatt
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
+import com.mascill.healthtrack.domain.model.MeasurementContext
 
 private const val LOCKED = 1
 
 /**
- * Stores a locked live GATT frame as the session weight when no report has succeeded.
+ * Returns a context that stores a locked live GATT frame as the weight when no report has succeeded.
  * Composition fields on the frame are not the report. History frames are ignored.
  */
 class AcceptGattUseCase(
     private val closeMeasurement: CloseMeasurementUseCase,
 ) {
-    operator fun invoke(session: MeasurementSession, parsed: GattResult): GattResult {
+    suspend operator fun invoke(context: MeasurementContext, parsed: GattResult): MeasurementContext {
         if (
-            session.result == null &&
+            context.session.result == null &&
             parsed is ScaleGatt &&
             parsed.lockFlag == LOCKED &&
             !parsed.history
         ) {
-            session.gattWeight = parsed
-            closeMeasurement(session)
+            return closeMeasurement(
+                context.copy(
+                    session = context.session.copy(weightKg = parsed.weightKg),
+                    gattWeight = parsed,
+                ),
+            )
         }
-        return parsed
+        return context
     }
 }

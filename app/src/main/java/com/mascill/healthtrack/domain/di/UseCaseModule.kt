@@ -13,6 +13,7 @@ import com.mascill.healthtrack.domain.usecase.DisplayMeasurementUseCase
 import com.mascill.healthtrack.domain.usecase.MeasureScale
 import com.mascill.healthtrack.domain.usecase.MeasureScaleUseCase
 import com.mascill.healthtrack.domain.usecase.MeasurementStateUseCase
+import com.mascill.healthtrack.util.AppDispatcher
 import com.mascill.healthtrack.util.ElapsedClock
 import dagger.Module
 import dagger.Provides
@@ -102,6 +103,7 @@ class UseCaseModule {
         applyBroadcastWeight: ApplyBroadcastWeightUseCase,
         measurementState: MeasurementStateUseCase,
         clock: ElapsedClock,
+        dispatcher: AppDispatcher,
     ): MeasureScaleUseCase = MeasureScale(
         radio = radio,
         transmissions = transmissions,
@@ -111,5 +113,6 @@ class UseCaseModule {
         applyBroadcastWeight = applyBroadcastWeight,
         measurementState = measurementState,
         clock = clock,
+        dispatcher = dispatcher,
     )
 }

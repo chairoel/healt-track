@@ -3,9 +3,9 @@ package com.mascill.healthtrack.data.protocol
 import com.mascill.healthtrack.data.di.DataModule
 import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
 import com.mascill.healthtrack.domain.model.FrameFormatError
-import com.mascill.healthtrack.domain.model.GattConfirmation
+import com.mascill.healthtrack.domain.model.GattResult.Confirmation
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
 import com.mascill.healthtrack.domain.model.IncompleteGatt
-import com.mascill.healthtrack.domain.model.ScaleGatt
 import com.mascill.healthtrack.domain.model.UnsupportedGatt
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -473,7 +473,7 @@ class GattRoleTest {
             0x00,
             0x02,
         )
-        val parsed = gattRepository().parseGatt(roleFrame(0x11, payload)) as GattConfirmation
+        val parsed = gattRepository().parseGatt(roleFrame(0x11, payload)) as Confirmation
         assertEquals(17, parsed.version)
         assertEquals(20, parsed.command)
         assertEquals(prop, parsed.property)
@@ -489,7 +489,7 @@ class GattRoleTest {
         val frames = packets(20, payload, intArrayOf(7, 4))
         val parser = gattRepository()
         assertNull(parser.parse(frames[0]))
-        val parsed = parser.parse(frames[1]) as GattConfirmation
+        val parsed = parser.parse(frames[1]) as Confirmation
         assertEquals(7.0, parsed.weightKg, 0.0)
         assertEquals("14.0", parsed.scaleWeight)
         assertEquals(listOf(7, 9), parsed.matchedRoles)
@@ -500,7 +500,7 @@ class GattRoleTest {
         val prop = propGatt()
         val parser = gattRepository()
         assertNull(parser.parse(roleFrame(0x12, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 1))))
-        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0, 0, 0, 2))) as GattConfirmation
+        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0, 0, 0, 2))) as Confirmation
         assertEquals(listOf(1, 2), parsed.matchedRoles)
         assertEquals(70.5, parsed.weightKg, 0.0)
     }
@@ -509,7 +509,7 @@ class GattRoleTest {
     fun lastPacketFirstStillCompletes() {
         val prop = propGatt()
         val parser = gattRepository()
-        val parsed = parser.parse(roleFrame(0x22, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 4))) as GattConfirmation
+        val parsed = parser.parse(roleFrame(0x22, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 4))) as Confirmation
         assertEquals(listOf(4), parsed.matchedRoles)
     }
 
@@ -518,7 +518,7 @@ class GattRoleTest {
         val prop = propGatt()
         val payload = byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 3)
         for (index in intArrayOf(0x00, 0x88)) {
-            val parsed = gattRepository().parseGatt(roleFrame(index, payload)) as GattConfirmation
+            val parsed = gattRepository().parseGatt(roleFrame(index, payload)) as Confirmation
             assertEquals("index $index", listOf(3), parsed.matchedRoles)
         }
     }
@@ -528,14 +528,14 @@ class GattRoleTest {
         val prop = propGatt()
         var payload = byteArrayOf(0x02, 0xC1.toByte(), prop.toByte()) + toBytesBig(0x7FFFFFFF, 4)
         payload += toBytesBig(0x80000000, 4) + byteArrayOf(1, 2, 3)
-        val parsed = gattRepository().parseGatt(roleFrame(0x11, payload)) as GattConfirmation
+        val parsed = gattRepository().parseGatt(roleFrame(0x11, payload)) as Confirmation
         assertEquals(listOf(0x7FFFFFFF, 0, 0), parsed.matchedRoles)
     }
 
     @Test
     fun withoutRoleId() {
         val prop = propGatt()
-        val parsed = gattRepository().parseGatt(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte()))) as GattConfirmation
+        val parsed = gattRepository().parseGatt(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte()))) as Confirmation
         assertEquals(emptyList<Int>(), parsed.matchedRoles)
     }
 
@@ -546,7 +546,7 @@ class GattRoleTest {
         assertThrows(FrameFormatError::class.java) {
             parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte())))
         }
-        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(prop.toByte(), 0, 0, 0, 5))) as GattConfirmation
+        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(prop.toByte(), 0, 0, 0, 5))) as Confirmation
         assertEquals(70.5, parsed.weightKg, 0.0)
         assertEquals(listOf(5), parsed.matchedRoles)
     }
@@ -558,7 +558,7 @@ class GattRoleTest {
         assertThrows(FrameFormatError::class.java) {
             parser.parse(byteArrayOf(0xCA.toByte(), 17, 10, 20, 0x12, 1, 2))
         }
-        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 4))) as GattConfirmation
+        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 4))) as Confirmation
         assertEquals(listOf(4), parsed.matchedRoles)
     }
 
@@ -569,7 +569,7 @@ class GattRoleTest {
         assertNull(parser.parse(roleFrame(0x12, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 8))))
         val liveResult = parser.parse(packets(18, body(propGatt(lock = 0), role = 7), intArrayOf(23))[0]) as ScaleGatt
         assertEquals(7, liveResult.roleId)
-        val parsed = parser.parse(roleFrame(0x22, byteArrayOf(0, 0, 0, 6))) as GattConfirmation
+        val parsed = parser.parse(roleFrame(0x22, byteArrayOf(0, 0, 0, 6))) as Confirmation
         assertEquals(listOf(8, 6), parsed.matchedRoles)
     }
 
@@ -578,7 +578,7 @@ class GattRoleTest {
         val prop = propGatt()
         val parser = gattRepository()
         parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 1)))
-        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 2))) as GattConfirmation
+        val parsed = parser.parse(roleFrame(0x11, byteArrayOf(0x02, 0xC1.toByte(), prop.toByte(), 0, 0, 0, 2))) as Confirmation
         assertEquals(listOf(2), parsed.matchedRoles)
     }
 

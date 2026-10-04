@@ -1,8 +1,8 @@
 package com.mascill.healthtrack.data.repository
 
 import com.mascill.healthtrack.data.di.DataModule
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
 import com.mascill.healthtrack.domain.model.IncompleteGatt
-import com.mascill.healthtrack.domain.model.ScaleGatt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows

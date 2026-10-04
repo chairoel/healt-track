@@ -320,7 +320,6 @@ object CsBiasV235 {
             return BiasV235Result(CODE_IMPEDANCE, null)
         }
         val weight10 = f32(weightTimes100 / f32(IMPEDANCE_TEN))
-        val weightKg = weightKgF
         val heavy = weightKgF > f32(HEAVY_KG)
         var bfp = linear(height, weight, impedance, ageByte, sexByte, FAT) / weight10 * THOUSAND
         if (bfp !in BFP_MIN..BFP_MAX) {
@@ -348,12 +347,14 @@ object CsBiasV235 {
         }
         val heightS = i16(height)
         val impedanceS = i16(impedance)
-        val protein = (slm + (water * weight10 / -THOUSAND)) / weightKg * PERCENT
+        val protein = (slm + (water * weight10 / -THOUSAND)) / weightKgF * PERCENT
         var muscle = fma(weightS.toDouble(), kSmmWt, 0.0) / WEIGHT_HUNDRED
         val muscleZ = impedanceS.toDouble() * kSmmZ / IMPEDANCE_TEN
         muscle = fma(heightS.toDouble(), kSmmH, muscle)
         muscle = fma(ageByte.toDouble(), kSmmAge, muscle)
-        muscle = muscle + muscleZ + kSmmConst
+        // Add muscleZ, then the constant, so each sum rounds on its own.
+        muscle += muscleZ
+        muscle += kSmmConst
         muscle = fma(sexByte.toDouble(), kSmmSex, muscle)
         val muscleHi = if (heavy) MUSCLE_HI_HEAVY else MUSCLE_HI_LIGHT
         if (muscle > muscleHi) {
@@ -371,9 +372,9 @@ object CsBiasV235 {
         val heightSq = heightS * heightS
         val bmi = weight10.toInt().toDouble() * THOUSAND / heightSq.toDouble()
         val standard = standardWeight(height, sexByte)
-        var fatControl = bfp * weightKg / -PERCENT
+        var fatControl = bfp * weightKgF / -PERCENT
         val slope = fma(sexByte.toDouble(), kFcSex, FAT_SLOPE_BASE)
-        val weightControl = standard - weightKg
+        val weightControl = standard - weightKgF
         fatControl = fma(standard, slope, fatControl)
         val muscleControl = weightControl - fatControl
         val metabolicAge = bodyAge(

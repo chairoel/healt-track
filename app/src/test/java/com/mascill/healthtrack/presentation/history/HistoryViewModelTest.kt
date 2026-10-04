@@ -87,7 +87,7 @@ private fun stored(id: Int): StoredMeasurement = StoredMeasurement(
 private class FixedMeasurementRepository(
     private val rows: List<StoredMeasurement>,
 ) : MeasurementRepository {
-    override fun save(result: MeasurementResult): Int = 1
+    override suspend fun save(result: MeasurementResult): Int = 1
 
-    override fun list(): List<StoredMeasurement> = rows
+    override suspend fun list(): List<StoredMeasurement> = rows
 }

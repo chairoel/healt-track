@@ -1,32 +1,27 @@
 package com.mascill.healthtrack.domain.usecase
 
-import com.mascill.healthtrack.domain.model.MeasurementSession
+import com.mascill.healthtrack.domain.model.MeasurementContext
 
 /**
- * Closes from the locked transmission weight when no GATT weight is stored.
+ * Returns a context closed from the locked transmission weight when no GATT weight is stored.
  * A GATT weight that is already stored stays.
  */
 class ApplyBroadcastWeightUseCase(
     private val closeMeasurement: CloseMeasurementUseCase,
 ) {
-    /**
-     * Returns whether [session] now holds a report.
-     */
-    operator fun invoke(session: MeasurementSession): Boolean {
-        if (session.result != null || session.gattWeight != null) {
-            return session.result != null
+    suspend operator fun invoke(context: MeasurementContext): MeasurementContext {
+        if (context.session.result != null || context.gattWeight != null) {
+            return context
         }
-        val frame = session.transmission
+        val frame = context.session.transmission
         if (
             frame == null ||
             !frame.locked ||
             frame.weightKg <= 0f ||
-            session.impedanceOhm == null
+            context.session.impedanceOhm == null
         ) {
-            return false
+            return context
         }
-        session.broadcastWeight = frame
-        closeMeasurement(session)
-        return session.result != null
+        return closeMeasurement(context.copy(broadcastWeight = frame))
     }
 }

@@ -8,7 +8,7 @@ import com.mascill.healthtrack.domain.model.StoredMeasurement
 import com.mascill.healthtrack.domain.repository.MeasurementRepository
 import com.mascill.healthtrack.util.AppDispatcher
 import javax.inject.Inject
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 /**
  * Inserts each finished measurement and lists rows with the greatest id first.
@@ -17,11 +17,11 @@ class MeasurementRepositoryImpl @Inject constructor(
     private val dao: MeasurementDao,
     private val dispatcher: AppDispatcher,
 ) : MeasurementRepository {
-    override fun save(result: MeasurementResult): Int = runBlocking(dispatcher.io) {
+    override suspend fun save(result: MeasurementResult): Int = withContext(dispatcher.io) {
         dao.insert(result.toEntity()).toInt()
     }
 
-    override fun list(): List<StoredMeasurement> = runBlocking(dispatcher.io) {
+    override suspend fun list(): List<StoredMeasurement> = withContext(dispatcher.io) {
         dao.listNewestFirst().map { it.toStoredMeasurement() }
     }
 }

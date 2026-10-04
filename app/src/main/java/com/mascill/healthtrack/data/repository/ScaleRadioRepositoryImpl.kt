@@ -3,24 +3,19 @@ package com.mascill.healthtrack.data.repository
 import com.mascill.healthtrack.data.datasource.BleDataSource
 import com.mascill.healthtrack.data.model.BleConnectEvent
 import com.mascill.healthtrack.data.model.BleScanEvent
-import com.mascill.healthtrack.domain.model.ScaleAdvertisement
-import com.mascill.healthtrack.domain.model.ScaleConnectFailed
-import com.mascill.healthtrack.domain.model.ScaleLinkLost
-import com.mascill.healthtrack.domain.model.ScaleNotification
-import com.mascill.healthtrack.domain.model.ScaleNotifyMissing
-import com.mascill.healthtrack.domain.model.ScaleNotifyReady
 import com.mascill.healthtrack.domain.model.ScaleRadioEvent
-import com.mascill.healthtrack.domain.model.ScaleScanFailed
 import com.mascill.healthtrack.domain.repository.ScaleRadioRepository
 import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
+import com.mascill.healthtrack.util.AppDispatcher
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -31,14 +26,18 @@ import kotlinx.coroutines.launch
 class ScaleRadioRepositoryImpl @Inject constructor(
     private val ble: BleDataSource,
     private val transmissions: ScaleTransmissionRepository,
+    dispatcher: AppDispatcher,
 ) : ScaleRadioRepository {
     private val lock = Any()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher.default)
     private var scanJob: Job? = null
     private var connectJob: Job? = null
     private var sessionGeneration = 0
     private var connectEpoch = 0
-    private var events = Channel<ScaleRadioEvent>(Channel.UNLIMITED)
+    private var eventChannel = Channel<ScaleRadioEvent>(Channel.UNLIMITED)
+
+    override val events: Flow<ScaleRadioEvent>
+        get() = synchronized(lock) { eventChannel }.receiveAsFlow()
 
     override fun bluetoothEnabled(): Boolean = ble.bluetoothEnabled()
 
@@ -46,7 +45,7 @@ class ScaleRadioRepositoryImpl @Inject constructor(
         val previous = synchronized(lock) {
             sessionGeneration += 1
             connectEpoch = 0
-            events.also { events = Channel(Channel.UNLIMITED) }
+            eventChannel.also { eventChannel = Channel(Channel.UNLIMITED) }
         }
         previous.close()
         ble.stop()
@@ -61,7 +60,7 @@ class ScaleRadioRepositoryImpl @Inject constructor(
             radioEvents.collect { event ->
                 when (event) {
                     is BleScanEvent.Advertisement -> acceptAdvertisement(generation, event)
-                    BleScanEvent.Failed -> trySend(generation, ScaleScanFailed)
+                    BleScanEvent.Failed -> trySend(generation, ScaleRadioEvent.ScanFailed)
                 }
             }
         }
@@ -83,7 +82,7 @@ class ScaleRadioRepositoryImpl @Inject constructor(
         }
         val radioEvents = ble.connect(address)
         if (radioEvents == null) {
-            trySend(generation, ScaleConnectFailed(epoch))
+            trySend(generation, ScaleRadioEvent.ConnectFailed(epoch))
             return epoch
         }
         val previousJob = connectJob
@@ -103,16 +102,11 @@ class ScaleRadioRepositoryImpl @Inject constructor(
         connectJob = null
     }
 
-    override suspend fun awaitEvent(): ScaleRadioEvent {
-        val channel = synchronized(lock) { events }
-        return channel.receive()
-    }
-
     override fun end() {
         val previous = synchronized(lock) {
             sessionGeneration += 1
             connectEpoch += 1
-            events.also { events = Channel(Channel.UNLIMITED) }
+            eventChannel.also { eventChannel = Channel(Channel.UNLIMITED) }
         }
         previous.close()
         ble.stop()
@@ -123,17 +117,17 @@ class ScaleRadioRepositoryImpl @Inject constructor(
         for (block in event.manufacturers) {
             val payload = try {
                 transmissions.payloadFromManufacturer(block.companyId, block.remainder.toByteArray())
-            } catch (error: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 null
             }
             if (payload != null) {
-                trySend(generation, ScaleAdvertisement(event.address, payload, event.connectable))
+                trySend(generation, ScaleRadioEvent.Advertisement(event.address, payload.toList(), event.connectable))
                 return
             }
         }
         val record = event.record?.toByteArray() ?: return
         val payload = transmissions.scalePayload(record) ?: return
-        trySend(generation, ScaleAdvertisement(event.address, payload, event.connectable))
+        trySend(generation, ScaleRadioEvent.Advertisement(event.address, payload.toList(), event.connectable))
     }
 
     private fun cancelCollectors() {
@@ -155,7 +149,7 @@ class ScaleRadioRepositoryImpl @Inject constructor(
             if (generation != sessionGeneration) {
                 return
             }
-            events
+            eventChannel
         }
         channel.trySend(event)
     }
@@ -168,9 +162,9 @@ class ScaleRadioRepositoryImpl @Inject constructor(
 }
 
 private fun BleConnectEvent.toScaleEvent(epoch: Int): ScaleRadioEvent = when (this) {
-    is BleConnectEvent.Notification -> ScaleNotification(epoch, value.toByteArray())
-    BleConnectEvent.NotifyReady -> ScaleNotifyReady(epoch)
-    BleConnectEvent.LinkLost -> ScaleLinkLost(epoch)
-    BleConnectEvent.NotifyMissing -> ScaleNotifyMissing(epoch)
-    BleConnectEvent.Failed -> ScaleConnectFailed(epoch)
+    is BleConnectEvent.Notification -> ScaleRadioEvent.Notification(epoch, value)
+    BleConnectEvent.NotifyReady -> ScaleRadioEvent.NotifyReady(epoch)
+    BleConnectEvent.LinkLost -> ScaleRadioEvent.LinkLost(epoch)
+    BleConnectEvent.NotifyMissing -> ScaleRadioEvent.NotifyMissing(epoch)
+    BleConnectEvent.Failed -> ScaleRadioEvent.ConnectFailed(epoch)
 }

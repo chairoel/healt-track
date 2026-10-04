@@ -203,7 +203,7 @@ private class FakeMeasureScale(
 private class FakeBodyRepository(
     private val latest: BodyData?,
 ) : BodyRepository {
-    override fun save(body: BodyData): Int = 1
+    override suspend fun save(body: BodyData): Int = 1
 
-    override fun latest(): BodyData? = latest
+    override suspend fun latest(): BodyData? = latest
 }

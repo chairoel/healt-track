@@ -3,9 +3,9 @@ package com.mascill.healthtrack.data.repository.gatt
 import com.mascill.healthtrack.data.util.GattConst
 import com.mascill.healthtrack.data.util.u8
 import com.mascill.healthtrack.domain.model.FrameFormatError
-import com.mascill.healthtrack.domain.model.GattConfirmation
 import com.mascill.healthtrack.domain.model.GattResult
-import com.mascill.healthtrack.domain.model.ScaleGatt
+import com.mascill.healthtrack.domain.model.GattResult.Confirmation
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
 import com.mascill.healthtrack.domain.model.UnsupportedGatt
 
 /**
@@ -111,7 +111,7 @@ class GattParser {
     /**
      * Appends one piece of [GattConst.CMD_ROLES]. The role list is parsed when the last packet arrives.
      */
-    private fun absorbRoles(frame: ByteArray): GattConfirmation? {
+    private fun absorbRoles(frame: ByteArray): Confirmation? {
         need(frame, GattConst.MIN_PACKET)
         val payloadLen = javaByte(frame.u8(GattConst.LENGTH)) - GattConst.LENGTH_OVERHEAD
         val payload = if (payloadLen > GattConst.EMPTY_LEN) {

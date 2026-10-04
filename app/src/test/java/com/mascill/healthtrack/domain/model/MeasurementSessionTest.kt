@@ -3,6 +3,8 @@ package com.mascill.healthtrack.domain.model
 import com.mascill.healthtrack.data.di.DataModule
 import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
 import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
+import com.mascill.healthtrack.domain.model.GattResult.Confirmation
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
 import com.mascill.healthtrack.domain.repository.MeasurementRepository
 import com.mascill.healthtrack.domain.usecase.AcceptGattUseCase
 import com.mascill.healthtrack.domain.usecase.AcceptTransmissionUseCase
@@ -11,12 +13,15 @@ import com.mascill.healthtrack.domain.usecase.CalculateReportUseCase
 import com.mascill.healthtrack.domain.usecase.CloseMeasurementUseCase
 import com.mascill.healthtrack.domain.usecase.MeasurementStateUseCase
 import com.mascill.healthtrack.util.CsBiasV235
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MeasurementSessionTest {
     private val body = BodyData(170.0, 30, 1)
     private val transmissions = ScaleTransmissionRepositoryImpl(DataModule.scaleHeaders())
@@ -28,39 +33,41 @@ class MeasurementSessionTest {
     private val measurementState = MeasurementStateUseCase()
 
     @Test
-    fun broadcastWeightWhenGattIsMissing() {
-        val session = MeasurementSession(body)
-        session.acceptBroadcast(broadcastC0(), "AA:BB:CC:DD:EE:FF")
-        assertNull(session.result)
-        assertTrue(applyBroadcastWeight(session))
-        assertEquals(70.5, session.result!!.weightKg, 0.0)
-        assertEquals(listOf(500.0), session.result!!.impedanceOhm)
+    fun broadcastWeightWhenGattIsMissing() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
+        ctx = ctx.acceptBroadcast(broadcastC0(), "AA:BB:CC:DD:EE:FF")
+        assertNull(ctx.session.result)
+        ctx = applyBroadcastWeight(ctx)
+        assertEquals(70.5, ctx.session.result!!.weightKg, 0.0)
+        assertEquals(listOf(500.0), ctx.session.result!!.impedanceOhm)
         assertEquals(
             CsBiasV235.parseDefaultZ(1, 30, 170.0, 70.5, 500.0).report,
-            session.result!!.report,
+            ctx.session.result!!.report,
         )
-        session.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
-        assertEquals(70.5, session.result!!.weightKg, 0.0)
+        ctx = ctx.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
+        assertEquals(70.5, ctx.session.result!!.weightKg, 0.0)
     }
 
     @Test
-    fun gattWeightStaysWhenItArrivedFirst() {
-        val session = MeasurementSession(body)
-        session.acceptBroadcast(broadcastC0(), "AA")
-        session.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
-        assertTrue(applyBroadcastWeight(session))
-        assertEquals(65.5, session.result!!.weightKg, 0.0)
+    fun gattWeightStaysWhenItArrivedFirst() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
+        ctx = ctx.acceptBroadcast(broadcastC0(), "AA")
+        ctx = ctx.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
+        ctx = applyBroadcastWeight(ctx)
+        assertEquals(65.5, ctx.session.result!!.weightKg, 0.0)
     }
 
     @Test
-    fun gattWeightAndBroadcastImpedance() {
-        val session = MeasurementSession(body)
-        session.acceptBroadcast(broadcastC0(), "AA:BB:CC:DD:EE:FF")
-        val parsed = session.acceptGatt(v17(1, 0x02 to 0x8F, prop())) as ScaleGatt
+    fun gattWeightAndBroadcastImpedance() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
+        ctx = ctx.acceptBroadcast(broadcastC0(), "AA:BB:CC:DD:EE:FF")
+        val gatt = v17(1, 0x02 to 0x8F, prop())
+        val parsed = gattFrames.parseGatt(gatt) as ScaleGatt
+        ctx = ctx.acceptGatt(gatt)
         val report = CsBiasV235.parseDefaultZ(1, 30, 170.0, 65.5, 500.0)
         assertEquals(65.5, parsed.weightKg, 0.0)
-        assertEquals("selesai", measurementState(session))
-        val result = session.result!!
+        assertEquals("selesai", measurementState(ctx))
+        val result = ctx.session.result!!
         assertEquals(65.5, result.weightKg, 0.0)
         assertEquals("65.5", result.scaleWeight)
         assertEquals(listOf(500.0), result.impedanceOhm)
@@ -68,113 +75,122 @@ class MeasurementSessionTest {
         assertEquals(1, result.productId)
         assertEquals("v235", result.formula)
         assertEquals(report.report, result.report)
-        assertEquals(70.5f, session.transmission!!.weightKg, 0f)
+        assertEquals(70.5f, ctx.session.transmission!!.weightKg, 0f)
     }
 
     @Test
-    fun gattBeforeBroadcast() {
-        val session = MeasurementSession(body)
-        val waiting = session.acceptGatt(v17(0, 0x02 to 0x8F, prop())) as ScaleGatt
+    fun gattBeforeBroadcast() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
+        val unlocked = v17(0, 0x02 to 0x8F, prop())
+        val waiting = gattFrames.parseGatt(unlocked) as ScaleGatt
         assertEquals(0, waiting.lockFlag)
-        assertNull(session.weightKg)
-        assertEquals("menunggu impedansi", measurementState(session))
-        session.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
-        assertEquals("menunggu impedansi", measurementState(session))
-        session.acceptBroadcast(broadcastC0(), "AA")
-        assertEquals(65.5, session.result!!.weightKg, 0.0)
+        ctx = ctx.acceptGatt(unlocked)
+        assertNull(ctx.session.weightKg)
+        assertEquals("menunggu impedansi", measurementState(ctx))
+        ctx = ctx.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
+        assertEquals("menunggu impedansi", measurementState(ctx))
+        ctx = ctx.acceptBroadcast(broadcastC0(), "AA")
+        assertEquals(65.5, ctx.session.result!!.weightKg, 0.0)
         assertEquals(
             CsBiasV235.parseDefaultZ(1, 30, 170.0, 65.5, 500.0).report,
-            session.result!!.report,
+            ctx.session.result!!.report,
         )
     }
 
     @Test
-    fun packetCompositionDoesNotChangeFat() {
-        val first = MeasurementSession(body)
-        val second = MeasurementSession(body)
-        for ((session, axunge) in listOf(first to 225, second to 400)) {
-            session.acceptBroadcast(broadcastC0())
-            session.acceptGatt(v16(prop(), 0x02 to 0x8F, axunge))
-        }
-        assertEquals(first.result!!.report, second.result!!.report)
+    fun packetCompositionDoesNotChangeFat() = runTest {
+        var first = MeasurementContext(MeasurementSession(body))
+        var second = MeasurementContext(MeasurementSession(body))
+        first = first
+            .acceptBroadcast(broadcastC0())
+            .acceptGatt(v16(prop(), 0x02 to 0x8F, 225))
+        second = second
+            .acceptBroadcast(broadcastC0())
+            .acceptGatt(v16(prop(), 0x02 to 0x8F, 400))
+        assertEquals(first.session.result!!.report, second.session.result!!.report)
         assertEquals(
             CsBiasV235.parseDefaultZ(1, 30, 170.0, 65.5, 500.0).report!!.bfp,
-            first.result!!.report.bfp,
+            first.session.result!!.report.bfp,
             0.0,
         )
     }
 
     @Test
-    fun broadcastWithoutImpedanceKeepsWaiting() {
-        val session = MeasurementSession(body)
+    fun broadcastWithoutImpedanceKeepsWaiting() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
         val frame = bytes(0xCA, 17, 0, 0x21, 2, 0x02, 0xC1, 0, 0, 1, 0)
-        session.acceptBroadcast(frame)
-        session.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
-        assertNull(session.result)
-        assertEquals("menunggu impedansi", measurementState(session))
+        ctx = ctx.acceptBroadcast(frame)
+        ctx = ctx.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
+        assertNull(ctx.session.result)
+        assertEquals("menunggu impedansi", measurementState(ctx))
     }
 
     @Test
-    fun unlockedBroadcastDoesNotReplaceImpedance() {
-        val session = MeasurementSession(body)
-        session.acceptBroadcast(broadcastC0())
+    fun unlockedBroadcastDoesNotReplaceImpedance() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
+        ctx = ctx.acceptBroadcast(broadcastC0())
         val unlocked = bytes(0xCA, 0x20, 0, 0, 0, 0, 42, 0, 0x20, 9, 0x02, 0xC1, 0x13, 0x88)
-        session.acceptBroadcast(unlocked)
-        assertEquals(500.0, session.impedanceOhm)
-        session.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
-        assertEquals(listOf(500.0), session.result!!.impedanceOhm)
+        ctx = ctx.acceptBroadcast(unlocked)
+        assertEquals(500.0, ctx.session.impedanceOhm)
+        ctx = ctx.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
+        assertEquals(listOf(500.0), ctx.session.result!!.impedanceOhm)
     }
 
     @Test
-    fun rolesAndHistoryAreNotTheSessionWeight() {
-        val session = MeasurementSession(body)
-        session.acceptBroadcast(broadcastC0())
+    fun rolesAndHistoryAreNotTheSessionWeight() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
+        ctx = ctx.acceptBroadcast(broadcastC0())
         val property = prop()
-        val roles = session.acceptGatt(
-            bytes(0xCA, 17, 13, 20, 0x11, 0x02, 0xC1, property, 0, 0, 0, 1, 0, 0, 0, 2),
-        )
-        assertTrue(roles is GattConfirmation)
-        assertEquals("menunggu berat", measurementState(session))
-        assertTrue((session.acceptGatt(history(property)) as ScaleGatt).history)
-        assertNull(session.result)
-        session.acceptGatt(v17(1, 0x02 to 0x8F, property))
-        assertEquals(65.5, session.result!!.weightKg, 0.0)
+        val roleBytes = bytes(0xCA, 17, 13, 20, 0x11, 0x02, 0xC1, property, 0, 0, 0, 1, 0, 0, 0, 2)
+        val roles = gattFrames.parseGatt(roleBytes)
+        ctx = ctx.acceptGatt(roleBytes)
+        assertTrue(roles is Confirmation)
+        assertEquals("menunggu berat", measurementState(ctx))
+        val historyFrame = history(property)
+        assertTrue((gattFrames.parseGatt(historyFrame) as ScaleGatt).history)
+        ctx = ctx.acceptGatt(historyFrame)
+        assertNull(ctx.session.result)
+        ctx = ctx.acceptGatt(v17(1, 0x02 to 0x8F, property))
+        assertEquals(65.5, ctx.session.result!!.weightKg, 0.0)
     }
 
     @Test
-    fun failedFormulaThenTheNextImpedance() {
-        val session = MeasurementSession(body)
-        session.acceptBroadcast(broadcastC0(0x03 to 0xE8))
-        session.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
-        assertNull(session.result)
-        assertEquals(-6, session.code)
-        assertEquals("rumus -6", measurementState(session))
-        session.acceptBroadcast(broadcastC0())
-        assertEquals(listOf(500.0), session.result!!.impedanceOhm)
-        assertEquals(0, session.code)
+    fun failedFormulaThenTheNextImpedance() = runTest {
+        var ctx = MeasurementContext(MeasurementSession(body))
+        ctx = ctx.acceptBroadcast(broadcastC0(0x03 to 0xE8))
+        ctx = ctx.acceptGatt(v17(1, 0x02 to 0x8F, prop()))
+        assertNull(ctx.session.result)
+        assertEquals(-6, ctx.session.code)
+        assertEquals("rumus -6", measurementState(ctx))
+        ctx = ctx.acceptBroadcast(broadcastC0())
+        assertEquals(listOf(500.0), ctx.session.result!!.impedanceOhm)
+        assertEquals(0, ctx.session.code)
     }
 
     @Test
-    fun firstSuccessStays() {
+    fun firstSuccessStays() = runTest {
         val store = MemoryMeasurementRepository()
         val close = CloseMeasurementUseCase(repository = store)
         val acceptTransmission = AcceptTransmissionUseCase(close)
         val acceptGatt = AcceptGattUseCase(close)
-        val session = MeasurementSession(body)
-        acceptTransmission(session, transmissions.parseTransmission(broadcastC0(), ""))
-        acceptGatt(session, gattFrames.parseGatt(v17(1, 0x02 to 0x8F, prop())))
-        acceptGatt(session, gattFrames.parseGatt(v17(1, 0x03 to 0x20, prop())))
-        assertEquals(65.5, session.result!!.weightKg, 0.0)
-        assertEquals(1, session.storedId)
+        var ctx = MeasurementContext(MeasurementSession(body))
+        ctx = acceptTransmission(ctx, transmissions.parseTransmission(broadcastC0(), ""))
+        ctx = acceptGatt(ctx, gattFrames.parseGatt(v17(1, 0x02 to 0x8F, prop())))
+        ctx = acceptGatt(ctx, gattFrames.parseGatt(v17(1, 0x03 to 0x20, prop())))
+        assertEquals(65.5, ctx.session.result!!.weightKg, 0.0)
+        assertEquals(1, ctx.session.storedId)
         assertEquals(1, store.saved.size)
-        assertEquals(session.result!!.report.bfp, store.saved[0].report.bfp, 0.0)
+        assertEquals(ctx.session.result!!.report.bfp, store.saved[0].report.bfp, 0.0)
     }
 
-    private fun MeasurementSession.acceptBroadcast(frame: ByteArray, mac: String = "") {
-        acceptTransmission(this, transmissions.parseTransmission(frame, mac))
+    private suspend fun MeasurementContext.acceptBroadcast(
+        frame: ByteArray,
+        mac: String = "",
+    ): MeasurementContext {
+        return acceptTransmission(this, transmissions.parseTransmission(frame, mac))
     }
 
-    private fun MeasurementSession.acceptGatt(frame: ByteArray): GattResult {
+    private suspend fun MeasurementContext.acceptGatt(frame: ByteArray): MeasurementContext {
         return acceptGattFrame(this, gattFrames.parseGatt(frame))
     }
 }
@@ -211,12 +227,12 @@ class CalculateReportTest {
 private class MemoryMeasurementRepository : MeasurementRepository {
     val saved = mutableListOf<MeasurementResult>()
 
-    override fun save(result: MeasurementResult): Int {
+    override suspend fun save(result: MeasurementResult): Int {
         saved += result
         return saved.size
     }
 
-    override fun list(): List<StoredMeasurement> =
+    override suspend fun list(): List<StoredMeasurement> =
         saved.mapIndexed { index, result ->
             StoredMeasurement(
                 id = index + 1,

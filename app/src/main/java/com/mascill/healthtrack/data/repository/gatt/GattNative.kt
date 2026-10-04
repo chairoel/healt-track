@@ -7,8 +7,8 @@ import com.mascill.healthtrack.data.util.GIdx
 import com.mascill.healthtrack.data.util.GattConst
 import com.mascill.healthtrack.data.util.RIdx
 import com.mascill.healthtrack.domain.model.FrameFormatError
-import com.mascill.healthtrack.domain.model.GattConfirmation
-import com.mascill.healthtrack.domain.model.ScaleGatt
+import com.mascill.healthtrack.domain.model.GattResult.Confirmation
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
 
 /**
  * Native reader for an assembled [GattConst.CMD_LIVE] or [GattConst.CMD_HISTORY] body.
@@ -38,7 +38,7 @@ internal fun nativeParseV16(frame: ByteArray): ScaleGatt {
  * Native reader for an assembled [GattConst.CMD_ROLES] list.
  * An error code other than [GattConst.ERR_OK] means the body is too short.
  */
-internal fun nativeParseRoles(body: ByteArray): GattConfirmation {
+internal fun nativeParseRoles(body: ByteArray): Confirmation {
     val values = NativeProtocol.nativeParseGattRoles(body)
     if (values[RIdx.ERROR].toInt() != GattConst.ERR_OK) {
         throw FrameFormatError("assembled GATT roles are too short")

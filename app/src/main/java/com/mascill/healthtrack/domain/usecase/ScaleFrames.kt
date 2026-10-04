@@ -2,9 +2,10 @@ package com.mascill.healthtrack.domain.usecase
 
 import com.mascill.healthtrack.domain.model.EncryptedTransmissionError
 import com.mascill.healthtrack.domain.model.FrameFormatError
-import com.mascill.healthtrack.domain.model.GattConfirmation
+import com.mascill.healthtrack.domain.model.GattResult.Confirmation
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
+import com.mascill.healthtrack.domain.model.MeasurementContext
 import com.mascill.healthtrack.domain.model.MeasurementSession
-import com.mascill.healthtrack.domain.model.ScaleGatt
 import com.mascill.healthtrack.domain.repository.ScaleGattRepository
 import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
 
@@ -12,11 +13,12 @@ private const val LOCKED = 1
 private const val LOW_BYTE = 0xFF
 
 /**
- * Applies one scale's advertisement payloads and GATT notifications to [session].
+ * Applies one scale's advertisement payloads and GATT notifications to [context].
  * Parsing goes through [ScaleTransmissionRepository] and [ScaleGattRepository].
+ * [context] is the measurement after the latest accepted frame.
  */
 internal class ScaleFrames(
-    private val session: MeasurementSession,
+    context: MeasurementContext,
     private val transmissions: ScaleTransmissionRepository,
     private val gattFrames: ScaleGattRepository,
     private val acceptTransmission: AcceptTransmissionUseCase,
@@ -24,6 +26,18 @@ internal class ScaleFrames(
     private val applyBroadcastWeight: ApplyBroadcastWeightUseCase,
     mac: String = "",
 ) {
+    /**
+     * Latest measurement context. A frame that changes it replaces this value.
+     */
+    var context: MeasurementContext = context
+        private set
+
+    /**
+     * Latest session for presentation layer.
+     */
+    val session: MeasurementSession
+        get() = context.session
+
     /**
      * Radio address of the first accepted scale. A preset [mac] is kept as-is.
      */
@@ -70,25 +84,25 @@ internal class ScaleFrames(
      * Returns a line when the broadcast changed, or null when it is ignored or repeated.
      * Another address is ignored once [address] is set.
      */
-    fun onAdvertisement(address: String, payload: ByteArray): String? {
+    suspend fun onAdvertisement(address: String, payload: ByteArray): String? {
         if (this.address.isNotEmpty() && !address.equals(this.address, ignoreCase = true)) {
             return null
         }
         val parsed = try {
             transmissions.parseTransmission(payload, address)
-        } catch (error: EncryptedTransmissionError) {
+        } catch (_: EncryptedTransmissionError) {
             attach(address)
             encrypted = true
             if (!encryptedAddresses.add(address.lowercase())) {
                 return null
             }
             return "$address siaran terenkripsi"
-        } catch (error: FrameFormatError) {
+        } catch (_: FrameFormatError) {
             return null
         }
-        acceptTransmission(session, parsed)
+        context = acceptTransmission(context, parsed)
         attach(address)
-        if (session.result == null && parsed.locked && parsed.impedanceOhm != null) {
+        if (context.session.result == null && parsed.locked && parsed.impedanceOhm != null) {
             broadcastHex = payload.toHex()
         }
         liveWeightText = parsed.scaleWeight?.takeIf { it.isNotEmpty() } ?: parsed.weightKg.toString()
@@ -106,8 +120,8 @@ internal class ScaleFrames(
      * Accepts one notify [frame].
      * Returns a line when the frame is new, or null when it is incomplete, repeated, or ignored.
      */
-    fun onGatt(frame: ByteArray): String? {
-        val hadResult = session.result != null
+    suspend fun onGatt(frame: ByteArray): String? {
+        val hadResult = context.session.result != null
         val parsed = try {
             gattFrames.parse(frame)
         } catch (error: FrameFormatError) {
@@ -121,8 +135,8 @@ internal class ScaleFrames(
         if (parsed == null) {
             return null
         }
-        acceptGatt(session, parsed)
-        if (parsed is GattConfirmation) {
+        context = acceptGatt(context, parsed)
+        if (parsed is Confirmation) {
             return "GATT konfirmasi peran"
         }
         if (parsed !is ScaleGatt) {
@@ -157,14 +171,15 @@ internal class ScaleFrames(
      * Closes from the locked broadcast when [connectable] is false and no link is up.
      * Returns `berat dari siaran terkunci` when that close stores a report.
      */
-    fun closeFromBroadcast(connectable: Boolean, connecting: Boolean): String? {
-        if (connectable || connecting || session.result != null) {
+    suspend fun closeFromBroadcast(connectable: Boolean, connecting: Boolean): String? {
+        if (connectable || connecting || context.session.result != null) {
             return null
         }
         if (broadcastHex.isEmpty()) {
             return null
         }
-        if (!applyBroadcastWeight(session)) {
+        context = applyBroadcastWeight(context)
+        if (context.session.result == null) {
             return null
         }
         return "berat dari siaran terkunci"

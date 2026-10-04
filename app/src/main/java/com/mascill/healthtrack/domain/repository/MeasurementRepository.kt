@@ -11,10 +11,10 @@ interface MeasurementRepository {
     /**
      * Persists [result] and returns the stored row id.
      */
-    fun save(result: MeasurementResult): Int
+    suspend fun save(result: MeasurementResult): Int
 
     /**
      * Stored measurements, greatest id first.
      */
-    fun list(): List<StoredMeasurement>
+    suspend fun list(): List<StoredMeasurement>
 }

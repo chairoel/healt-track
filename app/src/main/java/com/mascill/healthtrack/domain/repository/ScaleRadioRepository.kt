@@ -1,10 +1,14 @@
 package com.mascill.healthtrack.domain.repository
 
 import com.mascill.healthtrack.domain.model.ScaleRadioEvent
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Bluetooth radio for one scale.
  * Scanning and GATT stay behind this interface. The caller applies measurement frames.
+ *
+ * [events] is the Flow that emits radio events for the active session opened by [begin].
+ * Cancelling the collection of [events] does not stop the session; call [end] to do so.
  */
 interface ScaleRadioRepository {
     /**
@@ -31,7 +35,7 @@ interface ScaleRadioRepository {
     /**
      * Connects [address].
      * Returns the epoch of this attempt. A refused connect is also reported as
-     * [com.mascill.healthtrack.domain.model.ScaleConnectFailed] with that epoch.
+     * [com.mascill.healthtrack.domain.model.ScaleRadioEvent.ConnectFailed] with that epoch.
      */
     fun connect(address: String): Int
 
@@ -42,9 +46,10 @@ interface ScaleRadioRepository {
     fun disconnect()
 
     /**
-     * Suspends until the next event from the stream opened by [begin].
+     * Flow of events from the session opened by [begin].
+     * Each [begin] replaces the previous stream; stale collectors receive completion.
      */
-    suspend fun awaitEvent(): ScaleRadioEvent
+    val events: Flow<ScaleRadioEvent>
 
     /**
      * Stops scanning, closes GATT, and closes the event stream.

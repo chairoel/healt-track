@@ -6,16 +6,19 @@ import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
 import com.mascill.healthtrack.data.repository.gatt.GattParser
 import com.mascill.healthtrack.domain.model.BodyData
 import com.mascill.healthtrack.domain.model.MeasurementResult
-import com.mascill.healthtrack.domain.model.ScaleAdvertisement
 import com.mascill.healthtrack.domain.model.ScaleRadioEvent
 import com.mascill.healthtrack.domain.model.ScaleSessionStatus
 import com.mascill.healthtrack.domain.model.StoredMeasurement
 import com.mascill.healthtrack.domain.repository.MeasurementRepository
 import com.mascill.healthtrack.domain.repository.ScaleRadioRepository
+import com.mascill.healthtrack.util.AppDispatcher
 import com.mascill.healthtrack.util.ElapsedClock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -25,9 +28,15 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MeasureScaleUseCaseTest {
     private val body = BodyData(170.0, 30, 1)
+    private val testDispatcher = StandardTestDispatcher()
+    private val appDispatcher = AppDispatcher(
+        io = testDispatcher,
+        main = testDispatcher,
+        default = testDispatcher,
+    )
 
     @Test
-    fun bluetoothOffEmitsStatusWithoutRadio() = runTest {
+    fun bluetoothOffEmitsStatusWithoutRadio() = runTest(testDispatcher) {
         val radio = FakeRadio(enabled = false)
         val statuses = measure(radio, ElapsedClock { 0L }).invoke(body).toList()
         assertEquals(0, radio.begins)
@@ -35,9 +44,9 @@ class MeasureScaleUseCaseTest {
     }
 
     @Test
-    fun nonConnectableBroadcastStoresWeight() = runTest {
+    fun nonConnectableBroadcastStoresWeight() = runTest(testDispatcher) {
         val radio = FakeRadio()
-        radio.send(ScaleAdvertisement("AA", broadcast(), connectable = false))
+        radio.send(ScaleRadioEvent.Advertisement("AA", broadcast().toList(), connectable = false))
         val statuses = measure(radio, ElapsedClock { testScheduler.currentTime }).invoke(body).toList()
         val finished = statuses.last()
         assertEquals(1, finished.measurementId)
@@ -60,6 +69,7 @@ class MeasureScaleUseCaseTest {
             applyBroadcastWeight = ApplyBroadcastWeightUseCase(close),
             measurementState = MeasurementStateUseCase(),
             clock = clock,
+            dispatcher = appDispatcher,
         )
     }
 }
@@ -89,7 +99,8 @@ private class FakeRadio(
 
     override fun disconnect() = Unit
 
-    override suspend fun awaitEvent(): ScaleRadioEvent = incoming.receive()
+    override val events: Flow<ScaleRadioEvent>
+        get() = incoming.receiveAsFlow()
 
     override fun end() {
         ends += 1
@@ -102,9 +113,9 @@ private class FakeRadio(
 }
 
 private class OneShotMeasurementRepository : MeasurementRepository {
-    override fun save(result: MeasurementResult): Int = 1
+    override suspend fun save(result: MeasurementResult): Int = 1
 
-    override fun list(): List<StoredMeasurement> = emptyList()
+    override suspend fun list(): List<StoredMeasurement> = emptyList()
 }
 
 private fun broadcast(): ByteArray {

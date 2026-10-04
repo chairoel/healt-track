@@ -9,8 +9,8 @@ import com.mascill.healthtrack.data.model.RawGattMeasurement
 import com.mascill.healthtrack.data.util.GattConst
 import com.mascill.healthtrack.data.util.u8
 import com.mascill.healthtrack.domain.model.FrameFormatError
-import com.mascill.healthtrack.domain.model.GattConfirmation
-import com.mascill.healthtrack.domain.model.ScaleGatt
+import com.mascill.healthtrack.domain.model.GattResult.Confirmation
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
 
 /**
  * Assembled body of command 18 (live) or 19 (history).
@@ -99,7 +99,7 @@ private fun readV16(frame: ByteArray): RawGattMeasurement {
  * Assembled command 20. The weight is bytes 0..1 and the property is byte 2.
  * Each following role id is 4 bytes.
  */
-internal fun parseRoles(body: ByteArray): GattConfirmation {
+internal fun parseRoles(body: ByteArray): Confirmation {
     if (NativeProtocol.isLoaded) {
         return nativeParseRoles(body)
     }

@@ -6,8 +6,8 @@ import com.mascill.healthtrack.data.model.RawGattMeasurement
 import com.mascill.healthtrack.data.util.GIdx
 import com.mascill.healthtrack.data.util.GattConst
 import com.mascill.healthtrack.data.util.RIdx
-import com.mascill.healthtrack.domain.model.GattConfirmation
-import com.mascill.healthtrack.domain.model.ScaleGatt
+import com.mascill.healthtrack.domain.model.GattResult.Confirmation
+import com.mascill.healthtrack.domain.model.GattResult.ScaleGatt
 import java.time.Instant
 
 /**
@@ -41,11 +41,11 @@ fun RawGattMeasurement.toScaleGatt(): ScaleGatt {
 }
 
 /**
- * Maps a GATT role match to [GattConfirmation].
+ * Maps a GATT role match to [Confirmation].
  */
-fun RawGattConfirmation.toGattConfirmation(): GattConfirmation {
+fun RawGattConfirmation.toGattConfirmation(): Confirmation {
     val (kg, scaleWeight) = weightKilograms(weightHigh, weightLow, property, cloud = false)
-    return GattConfirmation(
+    return Confirmation(
         version = version,
         command = command,
         property = property and GattConst.LOW_BYTE,
@@ -89,11 +89,11 @@ internal fun DoubleArray.toScaleGatt(): ScaleGatt {
 }
 
 /**
- * Maps a successful native role-match array to [GattConfirmation].
+ * Maps a successful native role-match array to [Confirmation].
  * Role ids start at [RIdx.ROLES_START] and run for [RIdx.ROLE_COUNT] entries.
  * The caller rejects a native error code before this mapping.
  */
-internal fun DoubleArray.toGattConfirmation(): GattConfirmation {
+internal fun DoubleArray.toGattConfirmation(): Confirmation {
     val wHigh = this[RIdx.W_HIGH].toInt()
     val wLow = this[RIdx.W_LOW].toInt()
     val prop = this[RIdx.PROPERTY].toInt()
@@ -103,7 +103,7 @@ internal fun DoubleArray.toGattConfirmation(): GattConfirmation {
     repeat(roleCount) { i ->
         roles.add(this[RIdx.ROLES_START + i].toInt())
     }
-    return GattConfirmation(
+    return Confirmation(
         version = this[RIdx.VERSION].toInt(),
         command = this[RIdx.COMMAND].toInt(),
         property = prop and GattConst.LOW_BYTE,

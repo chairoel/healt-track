@@ -137,21 +137,21 @@ class ResultViewModelTest {
 private class FixedMeasurementRepository(
     private val rows: List<StoredMeasurement>,
 ) : MeasurementRepository {
-    override fun save(result: MeasurementResult): Int = 1
+    override suspend fun save(result: MeasurementResult): Int = 1
 
-    override fun list(): List<StoredMeasurement> = rows
+    override suspend fun list(): List<StoredMeasurement> = rows
 }
 
 private class EmptyBodyRepository : BodyRepository {
-    override fun save(body: BodyData): Int = 1
+    override suspend fun save(body: BodyData): Int = 1
 
-    override fun latest(): BodyData? = null
+    override suspend fun latest(): BodyData? = null
 }
 
 private class FixedBodyRepository(
     private val body: BodyData,
 ) : BodyRepository {
-    override fun save(body: BodyData): Int = 1
+    override suspend fun save(body: BodyData): Int = 1
 
-    override fun latest(): BodyData = body
+    override suspend fun latest(): BodyData = body
 }
