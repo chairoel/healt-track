@@ -23,6 +23,7 @@ import com.mascill.healthtrack.presentation.history.HistoryScreen
 import com.mascill.healthtrack.presentation.profile.ProfileScreen
 import com.mascill.healthtrack.presentation.result.ResultScreen
 import com.mascill.healthtrack.presentation.session.SessionScreen
+import com.mascill.healthtrack.presentation.session.model.FinishedSession
 
 private enum class BottomNavItem(
     val key: NavKey,
@@ -70,13 +71,29 @@ fun AppNavHost(modifier: Modifier = Modifier) {
                     ProfileScreen()
                 }
                 entry<SessionRoute> {
-                    SessionScreen()
+                    SessionScreen(
+                        onOpenResult = { finished: FinishedSession ->
+                            backStack.navigateTo(
+                                ResultRoute(
+                                    measurementId = finished.measurementId,
+                                    heightCm = finished.heightCm,
+                                    broadcastHex = finished.broadcastHex,
+                                    gattHex = finished.gattHex,
+                                ),
+                            )
+                        },
+                    )
                 }
                 entry<HistoryRoute> {
                     HistoryScreen()
                 }
                 entry<ResultRoute> { key ->
-                    ResultScreen(measurementId = key.measurementId)
+                    ResultScreen(
+                        measurementId = key.measurementId,
+                        heightCm = key.heightCm,
+                        broadcastHex = key.broadcastHex,
+                        gattHex = key.gattHex,
+                    )
                 }
             },
         )

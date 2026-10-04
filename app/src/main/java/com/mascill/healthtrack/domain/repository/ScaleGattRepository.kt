@@ -11,4 +11,9 @@ interface ScaleGattRepository {
     fun parseGatt(frame: ByteArray): GattResult
 
     fun parse(frame: ByteArray): GattResult?
+
+    /**
+     * Drops packet buffers so the next measurement starts empty.
+     */
+    fun reset()
 }

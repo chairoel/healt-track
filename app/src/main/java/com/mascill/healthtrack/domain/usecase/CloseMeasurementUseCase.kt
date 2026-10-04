@@ -8,7 +8,7 @@ import com.mascill.healthtrack.domain.repository.MeasurementRepository
  * Stores the first report whose code is 0.
  * Impedance comes from the locked transmission. Weight comes from the locked live GATT
  * frame, or from that transmission when no GATT weight is stored.
- * A missing [repository] skips save.
+ * A missing [repository] skips save and leaves [MeasurementSession.storedId] null.
  */
 class CloseMeasurementUseCase(
     private val calculateReport: CalculateReportUseCase = CalculateReportUseCase(),
@@ -42,7 +42,7 @@ class CloseMeasurementUseCase(
             code = outcome.code,
             report = report,
         )
-        repository?.save(finished)
+        session.storedId = repository?.save(finished)
         session.result = finished
     }
 

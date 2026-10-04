@@ -24,4 +24,8 @@ class ScaleGattRepositoryImpl @Inject constructor(
     }
 
     override fun parse(frame: ByteArray): GattResult? = parser.parse(frame)
+
+    override fun reset() {
+        parser.reset()
+    }
 }

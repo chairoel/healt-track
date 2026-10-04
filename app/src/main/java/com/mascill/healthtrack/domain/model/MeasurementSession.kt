@@ -21,6 +21,13 @@ class MeasurementSession(
     var result: MeasurementResult? = null
         internal set
 
+    /**
+     * Row id from [com.mascill.healthtrack.domain.repository.MeasurementRepository.save].
+     * Null until a report with code 0 is stored.
+     */
+    var storedId: Int? = null
+        internal set
+
     internal var mac: String = ""
     internal var productId: Int = 0
     internal var gattWeight: ScaleGatt? = null

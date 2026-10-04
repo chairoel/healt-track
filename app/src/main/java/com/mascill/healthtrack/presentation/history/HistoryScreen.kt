@@ -31,7 +31,7 @@ private const val SCREEN_PADDING = 16
 private const val ITEM_SPACING = 8
 
 /**
- * Stored measurements. Opening a row waits until the result screen is filled in.
+ * Stored measurements. Opening a row is wired in a later phase.
  */
 @Composable
 fun HistoryScreen(

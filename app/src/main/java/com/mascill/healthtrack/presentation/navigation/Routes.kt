@@ -10,7 +10,7 @@ import kotlinx.serialization.Serializable
 data object ProfileRoute : NavKey
 
 /**
- * Measurement session tab. Bluetooth is attached in a later phase.
+ * Measurement session tab.
  */
 @Serializable
 data object SessionRoute : NavKey
@@ -22,8 +22,14 @@ data object SessionRoute : NavKey
 data object HistoryRoute : NavKey
 
 /**
- * One stored or just-finished measurement.
- * The screen content is completed when results are shown.
+ * One measurement that just finished.
+ * [heightCm] is the profile used for the indexes. Hex is empty when that frame did not arrive.
+ * Opening an older row from history is a later phase.
  */
 @Serializable
-data class ResultRoute(val measurementId: Int) : NavKey
+data class ResultRoute(
+    val measurementId: Int,
+    val heightCm: Double = 0.0,
+    val broadcastHex: String = "",
+    val gattHex: String = "",
+) : NavKey

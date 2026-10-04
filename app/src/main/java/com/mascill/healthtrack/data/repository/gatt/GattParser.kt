@@ -25,6 +25,15 @@ class GattParser {
     private var roles: ByteArray? = byteArrayOf()
 
     /**
+     * Drops live, history, and role buffers from the previous measurement.
+     */
+    fun reset() {
+        live = mutableMapOf()
+        history = mutableMapOf()
+        roles = byteArrayOf()
+    }
+
+    /**
      * Reads one frame. Returns null while a split command is still missing packets.
      */
     fun parse(frame: ByteArray): GattResult? {

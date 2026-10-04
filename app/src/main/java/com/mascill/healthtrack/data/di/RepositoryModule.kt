@@ -2,10 +2,12 @@ package com.mascill.healthtrack.data.di
 
 import com.mascill.healthtrack.data.repository.BodyRepositoryImpl
 import com.mascill.healthtrack.data.repository.MeasurementRepositoryImpl
+import com.mascill.healthtrack.data.repository.ScaleSessionRepositoryImpl
 import com.mascill.healthtrack.data.repository.ScaleTransmissionRepositoryImpl
 import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
 import com.mascill.healthtrack.domain.repository.BodyRepository
 import com.mascill.healthtrack.domain.repository.MeasurementRepository
+import com.mascill.healthtrack.domain.repository.ScaleSessionRepository
 import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
 import com.mascill.healthtrack.domain.repository.ScaleGattRepository
 import com.mascill.healthtrack.domain.usecase.CloseMeasurementUseCase
@@ -36,6 +38,15 @@ abstract class RepositoryModule {
     abstract fun bindBodyRepository(
         impl: BodyRepositoryImpl,
     ): BodyRepository
+
+    /**
+     * Bluetooth session. The interface stays free of platform types.
+     */
+    @Binds
+    @Singleton
+    abstract fun bindScaleSessionRepository(
+        impl: ScaleSessionRepositoryImpl,
+    ): ScaleSessionRepository
 
     /**
      * Room implementation. Fills the optional consumed by [CloseMeasurementUseCase].

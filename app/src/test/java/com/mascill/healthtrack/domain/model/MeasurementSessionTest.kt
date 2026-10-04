@@ -165,6 +165,7 @@ class MeasurementSessionTest {
         acceptGatt(session, gattFrames.parseGatt(v17(1, 0x02 to 0x8F, prop())))
         acceptGatt(session, gattFrames.parseGatt(v17(1, 0x03 to 0x20, prop())))
         assertEquals(65.5, session.result!!.weightKg, 0.0)
+        assertEquals(1, session.storedId)
         assertEquals(1, store.saved.size)
         assertEquals(session.result!!.report.bfp, store.saved[0].report.bfp, 0.0)
     }
