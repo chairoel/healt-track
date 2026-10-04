@@ -1,7 +1,7 @@
 package com.mascill.healthtrack.data.mapper
 
 import com.mascill.healthtrack.data.util.utcTimestamp
-import com.mascill.healthtrack.data.model.entity.BodyEntity
+import com.mascill.healthtrack.data.datasource.local.entity.BodyEntity
 import com.mascill.healthtrack.domain.model.BodyData
 
 /**

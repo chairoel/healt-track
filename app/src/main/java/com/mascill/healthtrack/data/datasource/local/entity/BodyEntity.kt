@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.data.model.entity
+package com.mascill.healthtrack.data.datasource.local.entity
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity

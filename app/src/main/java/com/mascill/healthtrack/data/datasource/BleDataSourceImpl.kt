@@ -19,10 +19,17 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.core.util.size
+import com.mascill.healthtrack.data.model.BleConnectEvent
+import com.mascill.healthtrack.data.model.BleManufacturerBlock
+import com.mascill.healthtrack.data.model.BleScanEvent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.onCompletion
 
 /**
  * Chipsea notify characteristic. The session reads this and does not write the TX characteristic
@@ -46,13 +53,9 @@ class BleDataSourceImpl @Inject constructor(
     private var scanToken = 0
     private var gattToken = 0
     private var scannerCallback: ScanCallback? = null
+    private var scanEvents: Channel<BleScanEvent>? = null
     private var gatt: BluetoothGatt? = null
-
-    @Volatile
-    private var scanHandlers: ScanHandlers? = null
-
-    @Volatile
-    private var connectHandlers: ConnectHandlers? = null
+    private var connectEvents: Channel<BleConnectEvent>? = null
 
     override fun bluetoothEnabled(): Boolean {
         return try {
@@ -63,35 +66,28 @@ class BleDataSourceImpl @Inject constructor(
     }
 
     @SuppressLint("MissingPermission")
-    override fun startScan(
-        onManufacturer: (String, Int, ByteArray, Boolean) -> Boolean,
-        onRecord: (String, ByteArray, Boolean) -> Unit,
-        onScanFailed: () -> Unit,
-    ): Boolean {
+    override fun startScan(): Flow<BleScanEvent>? {
         if (!bluetoothEnabled() || !canScan()) {
-            return false
+            return null
         }
         stopScan()
-        val radio = adapter()?.bluetoothLeScanner ?: return false
+        val radio = adapter()?.bluetoothLeScanner ?: return null
+        val events = Channel<BleScanEvent>(Channel.UNLIMITED)
         val token = synchronized(lock) { scanToken }
-        scanHandlers = ScanHandlers(onManufacturer, onRecord, onScanFailed)
         val callback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                handleResult(token, result)
+                handleResult(token, result, events)
             }
 
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
-                results.forEach { result -> handleResult(token, result) }
+                results.forEach { result -> handleResult(token, result, events) }
             }
 
             override fun onScanFailed(errorCode: Int) {
-                if (errorCode == SCAN_FAILED_ALREADY_STARTED) {
+                if (errorCode == SCAN_FAILED_ALREADY_STARTED || !scanLive(token)) {
                     return
                 }
-                if (!scanLive(token)) {
-                    return
-                }
-                scanHandlers?.onScanFailed?.invoke()
+                events.trySend(BleScanEvent.Failed)
             }
         }
         val settings = ScanSettings.Builder()
@@ -99,35 +95,49 @@ class BleDataSourceImpl @Inject constructor(
             .build()
         return try {
             radio.startScan(null, settings, callback)
-            synchronized(lock) {
+            val kept = synchronized(lock) {
                 if (token != scanToken) {
                     radio.stopScan(callback)
                     false
                 } else {
                     scannerCallback = callback
+                    scanEvents = events
                     true
                 }
             }
+            if (!kept) {
+                events.close()
+                null
+            } else {
+                events.consumeAsFlow().onCompletion { stopOwningScan(token) }
+            }
         } catch (_: SecurityException) {
-            false
+            events.close()
+            null
         } catch (_: IllegalStateException) {
-            false
+            events.close()
+            null
         }
     }
 
     @SuppressLint("MissingPermission")
     override fun stopScan() {
-        val previous = synchronized(lock) {
+        val previousCallback: ScanCallback?
+        val previousEvents: Channel<BleScanEvent>?
+        synchronized(lock) {
             scanToken += 1
-            scannerCallback.also { scannerCallback = null }
+            previousCallback = scannerCallback
+            scannerCallback = null
+            previousEvents = scanEvents
+            scanEvents = null
         }
-        scanHandlers = null
-        if (previous == null) {
+        previousEvents?.close()
+        if (previousCallback == null) {
             return
         }
         val radio = adapter()?.bluetoothLeScanner ?: return
         try {
-            radio.stopScan(previous)
+            radio.stopScan(previousCallback)
         } catch (_: SecurityException) {
             // Permission is already gone.
         } catch (_: IllegalStateException) {
@@ -137,68 +147,73 @@ class BleDataSourceImpl @Inject constructor(
 
     @Suppress("DEPRECATION")
     @SuppressLint("MissingPermission")
-    override fun connect(
-        address: String,
-        onNotification: (ByteArray) -> Unit,
-        onNotifyReady: () -> Unit,
-        onLinkLost: () -> Unit,
-        onNotifyMissing: () -> Unit,
-        onFailed: () -> Unit,
-    ): Boolean {
+    override fun connect(address: String): Flow<BleConnectEvent>? {
         if (!bluetoothEnabled() || !canConnectRadio()) {
-            return false
+            return null
         }
         disconnect()
-        val device = findDevice(address) ?: return false
+        val device = findDevice(address) ?: return null
+        val events = Channel<BleConnectEvent>(Channel.UNLIMITED)
         val token = synchronized(lock) { gattToken }
-        connectHandlers = ConnectHandlers(
-            onNotification,
-            onNotifyReady,
-            onLinkLost,
-            onNotifyMissing,
-            onFailed,
-        )
-        val callback = GattCallback(token)
+        val callback = GattCallback(token, events)
         return try {
             val created = device.connectGatt(
                 context,
                 AUTO_CONNECT,
                 callback,
                 BluetoothDevice.TRANSPORT_LE,
-            ) ?: return false
-            synchronized(lock) {
+            )
+            if (created == null) {
+                events.close()
+                return null
+            }
+            val kept = synchronized(lock) {
                 if (token != gattToken) {
                     created.close()
                     false
                 } else {
                     gatt = created
+                    connectEvents = events
                     true
                 }
             }
+            if (!kept) {
+                events.close()
+                null
+            } else {
+                events.consumeAsFlow().onCompletion { disconnectIfOwner(token) }
+            }
         } catch (_: SecurityException) {
-            false
+            events.close()
+            null
         } catch (_: IllegalArgumentException) {
-            false
+            events.close()
+            null
         }
     }
 
     @SuppressLint("MissingPermission")
     override fun disconnect() {
-        val previous = synchronized(lock) {
+        val previousClient: BluetoothGatt?
+        val previousEvents: Channel<BleConnectEvent>?
+        synchronized(lock) {
             gattToken += 1
-            connectHandlers = null
-            gatt.also { gatt = null }
+            previousEvents = connectEvents
+            connectEvents = null
+            previousClient = gatt
+            gatt = null
         }
-        if (previous == null) {
+        previousEvents?.close()
+        if (previousClient == null) {
             return
         }
         try {
-            previous.disconnect()
+            previousClient.disconnect()
         } catch (_: SecurityException) {
             // Permission is already gone.
         }
         try {
-            previous.close()
+            previousClient.close()
         } catch (_: SecurityException) {
             // The client is already closed.
         }
@@ -210,11 +225,10 @@ class BleDataSourceImpl @Inject constructor(
         synchronized(lock) { devices.clear() }
     }
 
-    private fun handleResult(token: Int, result: ScanResult) {
+    private fun handleResult(token: Int, result: ScanResult, events: Channel<BleScanEvent>) {
         if (!scanLive(token)) {
             return
         }
-        val handlers = scanHandlers ?: return
         val record = result.scanRecord ?: return
         val address = try {
             result.device.address
@@ -225,21 +239,38 @@ class BleDataSourceImpl @Inject constructor(
             return
         }
         synchronized(lock) { devices[address] = result.device }
-        val connectable = result.isConnectable
-        val sparse = record.manufacturerSpecificData
-        var accepted = false
-        if (sparse != null) {
+        val blocks = buildList {
+            val sparse = record.manufacturerSpecificData ?: return@buildList
             for (index in 0 until sparse.size) {
-                val remainder = sparse.valueAt(index)?.copyOf() ?: continue
-                if (handlers.onManufacturer(address, sparse.keyAt(index), remainder, connectable)) {
-                    accepted = true
-                    break
-                }
+                val remainder = sparse.valueAt(index)?.toList() ?: continue
+                add(BleManufacturerBlock(sparse.keyAt(index), remainder))
             }
         }
-        if (!accepted) {
-            val raw = record.bytes?.copyOf() ?: return
-            handlers.onRecord(address, raw, connectable)
+        val raw = record.bytes?.toList()
+        if (blocks.isEmpty() && raw == null) {
+            return
+        }
+        events.trySend(
+            BleScanEvent.Advertisement(
+                address = address,
+                connectable = result.isConnectable,
+                manufacturers = blocks,
+                record = raw,
+            ),
+        )
+    }
+
+    private fun stopOwningScan(token: Int) {
+        if (!scanLive(token)) {
+            return
+        }
+        stopScan()
+    }
+
+    private fun disconnectIfOwner(token: Int) {
+        val owns = synchronized(lock) { token == gattToken }
+        if (owns) {
+            disconnect()
         }
     }
 
@@ -290,7 +321,15 @@ class BleDataSourceImpl @Inject constructor(
 
     private inner class GattCallback(
         private val token: Int,
+        private val events: Channel<BleConnectEvent>,
     ) : BluetoothGattCallback() {
+        private fun emit(event: BleConnectEvent) {
+            if (!live()) {
+                return
+            }
+            events.trySend(event)
+        }
+
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (!live()) {
                 return
@@ -303,17 +342,17 @@ class BleDataSourceImpl @Inject constructor(
                         false
                     }
                     if (!started) {
-                        connectHandlers?.onFailed?.invoke()
+                        emit(BleConnectEvent.Failed)
                     }
                 }
                 newState == BluetoothProfile.STATE_DISCONNECTED -> {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
-                        connectHandlers?.onLinkLost?.invoke()
+                        emit(BleConnectEvent.LinkLost)
                     } else {
-                        connectHandlers?.onFailed?.invoke()
+                        emit(BleConnectEvent.Failed)
                     }
                 }
-                status != BluetoothGatt.GATT_SUCCESS -> connectHandlers?.onFailed?.invoke()
+                status != BluetoothGatt.GATT_SUCCESS -> emit(BleConnectEvent.Failed)
             }
         }
 
@@ -322,12 +361,12 @@ class BleDataSourceImpl @Inject constructor(
                 return
             }
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                connectHandlers?.onFailed?.invoke()
+                emit(BleConnectEvent.Failed)
                 return
             }
             val rx = gatt.getService(CHIPSEA_SERVICE)?.getCharacteristic(CHIPSEA_RX)
             if (rx == null) {
-                connectHandlers?.onNotifyMissing?.invoke()
+                emit(BleConnectEvent.NotifyMissing)
                 return
             }
             enableNotify(gatt, rx)
@@ -363,9 +402,9 @@ class BleDataSourceImpl @Inject constructor(
                 return
             }
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                connectHandlers?.onNotifyReady?.invoke()
+                emit(BleConnectEvent.NotifyReady)
             } else {
-                connectHandlers?.onFailed?.invoke()
+                emit(BleConnectEvent.Failed)
             }
         }
 
@@ -376,7 +415,7 @@ class BleDataSourceImpl @Inject constructor(
                 rx.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0 ->
                     BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
                 else -> {
-                    connectHandlers?.onNotifyMissing?.invoke()
+                    emit(BleConnectEvent.NotifyMissing)
                     return
                 }
             }
@@ -386,16 +425,16 @@ class BleDataSourceImpl @Inject constructor(
                 false
             }
             if (!enabled) {
-                connectHandlers?.onFailed?.invoke()
+                emit(BleConnectEvent.Failed)
                 return
             }
             val descriptor = rx.getDescriptor(CLIENT_CONFIG)
             if (descriptor == null) {
-                connectHandlers?.onNotifyMissing?.invoke()
+                emit(BleConnectEvent.NotifyMissing)
                 return
             }
             if (!writeConfig(gatt, descriptor, value)) {
-                connectHandlers?.onFailed?.invoke()
+                emit(BleConnectEvent.Failed)
             }
         }
 
@@ -427,25 +466,11 @@ class BleDataSourceImpl @Inject constructor(
             if (!live() || characteristic.uuid != CHIPSEA_RX) {
                 return
             }
-            connectHandlers?.onNotification?.invoke(value.copyOf())
+            emit(BleConnectEvent.Notification(value.toList()))
         }
 
         private fun live(): Boolean {
             return synchronized(lock) { token == gattToken }
         }
     }
-
-    private class ScanHandlers(
-        val onManufacturer: (String, Int, ByteArray, Boolean) -> Boolean,
-        val onRecord: (String, ByteArray, Boolean) -> Unit,
-        val onScanFailed: () -> Unit,
-    )
-
-    private class ConnectHandlers(
-        val onNotification: (ByteArray) -> Unit,
-        val onNotifyReady: () -> Unit,
-        val onLinkLost: () -> Unit,
-        val onNotifyMissing: () -> Unit,
-        val onFailed: () -> Unit,
-    )
 }

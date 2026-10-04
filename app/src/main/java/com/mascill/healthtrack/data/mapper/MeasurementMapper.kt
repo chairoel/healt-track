@@ -2,7 +2,7 @@ package com.mascill.healthtrack.data.mapper
 
 import com.mascill.healthtrack.data.util.utcTimestamp
 import com.mascill.healthtrack.data.model.StoredReport
-import com.mascill.healthtrack.data.model.entity.MeasurementEntity
+import com.mascill.healthtrack.data.datasource.local.entity.MeasurementEntity
 import com.mascill.healthtrack.domain.model.MeasurementResult
 import com.mascill.healthtrack.domain.model.StoredMeasurement
 import com.mascill.healthtrack.domain.model.V235Report

@@ -1,6 +1,8 @@
 package com.mascill.healthtrack.data.repository
 
 import com.mascill.healthtrack.data.datasource.BleDataSource
+import com.mascill.healthtrack.data.model.BleConnectEvent
+import com.mascill.healthtrack.data.model.BleScanEvent
 import com.mascill.healthtrack.domain.model.ScaleAdvertisement
 import com.mascill.healthtrack.domain.model.ScaleConnectFailed
 import com.mascill.healthtrack.domain.model.ScaleLinkLost
@@ -13,11 +15,17 @@ import com.mascill.healthtrack.domain.repository.ScaleRadioRepository
 import com.mascill.healthtrack.domain.repository.ScaleTransmissionRepository
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 
 /**
  * Platform scan and GATT for one scale.
- * Frames are delivered as [ScaleRadioEvent]. This class does not apply them to a measurement.
+ * Collects [BleDataSource] flows into [ScaleRadioEvent]. This class does not apply them to a measurement.
  */
 @Singleton
 class ScaleRadioRepositoryImpl @Inject constructor(
@@ -25,6 +33,9 @@ class ScaleRadioRepositoryImpl @Inject constructor(
     private val transmissions: ScaleTransmissionRepository,
 ) : ScaleRadioRepository {
     private val lock = Any()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+    private var scanJob: Job? = null
+    private var connectJob: Job? = null
     private var sessionGeneration = 0
     private var connectEpoch = 0
     private var events = Channel<ScaleRadioEvent>(Channel.UNLIMITED)
@@ -39,23 +50,29 @@ class ScaleRadioRepositoryImpl @Inject constructor(
         }
         previous.close()
         ble.stop()
+        cancelCollectors()
     }
 
     override fun startScan(): Boolean {
         val generation = currentGeneration()
-        return ble.startScan(
-            onManufacturer = { address, companyId, remainder, connectable ->
-                acceptManufacturer(generation, address, companyId, remainder, connectable)
-            },
-            onRecord = { address, record, connectable ->
-                acceptRecord(generation, address, record, connectable)
-            },
-            onScanFailed = { trySend(generation, ScaleScanFailed) },
-        )
+        val radioEvents = ble.startScan() ?: return false
+        val previousJob = scanJob
+        scanJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            radioEvents.collect { event ->
+                when (event) {
+                    is BleScanEvent.Advertisement -> acceptAdvertisement(generation, event)
+                    BleScanEvent.Failed -> trySend(generation, ScaleScanFailed)
+                }
+            }
+        }
+        previousJob?.cancel()
+        return true
     }
 
     override fun stopScan() {
         ble.stopScan()
+        scanJob?.cancel()
+        scanJob = null
     }
 
     override fun connect(address: String): Int {
@@ -64,23 +81,26 @@ class ScaleRadioRepositoryImpl @Inject constructor(
             connectEpoch += 1
             connectEpoch
         }
-        val started = ble.connect(
-            address = address,
-            onNotification = { value -> sendIfLive(generation, epoch, ScaleNotification(epoch, value)) },
-            onNotifyReady = { sendIfLive(generation, epoch, ScaleNotifyReady(epoch)) },
-            onLinkLost = { sendIfLive(generation, epoch, ScaleLinkLost(epoch)) },
-            onNotifyMissing = { sendIfLive(generation, epoch, ScaleNotifyMissing(epoch)) },
-            onFailed = { sendIfLive(generation, epoch, ScaleConnectFailed(epoch)) },
-        )
-        if (!started) {
+        val radioEvents = ble.connect(address)
+        if (radioEvents == null) {
             trySend(generation, ScaleConnectFailed(epoch))
+            return epoch
         }
+        val previousJob = connectJob
+        connectJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            radioEvents.collect { event ->
+                sendIfLive(generation, epoch, event.toScaleEvent(epoch))
+            }
+        }
+        previousJob?.cancel()
         return epoch
     }
 
     override fun disconnect() {
         synchronized(lock) { connectEpoch += 1 }
         ble.disconnect()
+        connectJob?.cancel()
+        connectJob = null
     }
 
     override suspend fun awaitEvent(): ScaleRadioEvent {
@@ -96,32 +116,31 @@ class ScaleRadioRepositoryImpl @Inject constructor(
         }
         previous.close()
         ble.stop()
+        cancelCollectors()
     }
 
-    private fun acceptManufacturer(
-        generation: Int,
-        address: String,
-        companyId: Int,
-        remainder: ByteArray,
-        connectable: Boolean,
-    ): Boolean {
-        val payload = try {
-            transmissions.payloadFromManufacturer(companyId, remainder)
-        } catch (error: IllegalArgumentException) {
-            null
-        } ?: return false
-        trySend(generation, ScaleAdvertisement(address, payload, connectable))
-        return true
-    }
-
-    private fun acceptRecord(
-        generation: Int,
-        address: String,
-        record: ByteArray,
-        connectable: Boolean,
-    ) {
+    private fun acceptAdvertisement(generation: Int, event: BleScanEvent.Advertisement) {
+        for (block in event.manufacturers) {
+            val payload = try {
+                transmissions.payloadFromManufacturer(block.companyId, block.remainder.toByteArray())
+            } catch (error: IllegalArgumentException) {
+                null
+            }
+            if (payload != null) {
+                trySend(generation, ScaleAdvertisement(event.address, payload, event.connectable))
+                return
+            }
+        }
+        val record = event.record?.toByteArray() ?: return
         val payload = transmissions.scalePayload(record) ?: return
-        trySend(generation, ScaleAdvertisement(address, payload, connectable))
+        trySend(generation, ScaleAdvertisement(event.address, payload, event.connectable))
+    }
+
+    private fun cancelCollectors() {
+        scanJob?.cancel()
+        scanJob = null
+        connectJob?.cancel()
+        connectJob = null
     }
 
     private fun sendIfLive(generation: Int, epoch: Int, event: ScaleRadioEvent) {
@@ -146,4 +165,12 @@ class ScaleRadioRepositoryImpl @Inject constructor(
     }
 
     private fun currentGeneration(): Int = synchronized(lock) { sessionGeneration }
+}
+
+private fun BleConnectEvent.toScaleEvent(epoch: Int): ScaleRadioEvent = when (this) {
+    is BleConnectEvent.Notification -> ScaleNotification(epoch, value.toByteArray())
+    BleConnectEvent.NotifyReady -> ScaleNotifyReady(epoch)
+    BleConnectEvent.LinkLost -> ScaleLinkLost(epoch)
+    BleConnectEvent.NotifyMissing -> ScaleNotifyMissing(epoch)
+    BleConnectEvent.Failed -> ScaleConnectFailed(epoch)
 }

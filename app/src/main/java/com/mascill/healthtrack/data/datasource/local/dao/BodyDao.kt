@@ -3,7 +3,7 @@ package com.mascill.healthtrack.data.datasource.local.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
-import com.mascill.healthtrack.data.model.entity.BodyEntity
+import com.mascill.healthtrack.data.datasource.local.entity.BodyEntity
 
 /**
  * Reads and inserts body profiles.

@@ -1,10 +1,14 @@
 package com.mascill.healthtrack.data.datasource
 
+import com.mascill.healthtrack.data.model.BleConnectEvent
+import com.mascill.healthtrack.data.model.BleScanEvent
+import kotlinx.coroutines.flow.Flow
+
 /**
  * Platform scan and GATT for one scale session.
  * Tests mock this type. [BleDataSourceImpl] talks to the radio.
  * [connect] uses autoConnect false so scanning and `connectGatt` are not left running together.
- * Callers stop the scan before [connect] and start it again after [onNotifyReady].
+ * Callers stop the scan before [connect] and collect [startScan] again after [BleConnectEvent.NotifyReady].
  */
 interface BleDataSource {
     /**
@@ -13,47 +17,31 @@ interface BleDataSource {
     fun bluetoothEnabled(): Boolean
 
     /**
-     * Starts a low-latency scan. Stops a scan that is already running.
-     * Returns false when Bluetooth is off or scan permission is missing.
-     *
-     * [onManufacturer] receives one manufacturer block. Return true when that block is a scale
-     * payload so later blocks in the same result are skipped.
-     * [onRecord] receives the raw advertisement when no manufacturer block was accepted.
-     * [onScanFailed] runs when the scanner reports a failure other than an already-started scan.
+     * Starts a low-latency scan and returns its events.
+     * The scan is already running when this returns. Collect the flow to receive results.
+     * Null when Bluetooth is off or scan permission is missing. The scan that was already
+     * running is left in place in that case.
+     * A started scan replaces the previous one. Cancelling the returned flow stops that scan.
+     * The caller stops the scan before [connect].
      */
-    fun startScan(
-        onManufacturer: (
-            address: String,
-            companyId: Int,
-            remainder: ByteArray,
-            connectable: Boolean,
-        ) -> Boolean,
-        onRecord: (address: String, record: ByteArray, connectable: Boolean) -> Unit,
-        onScanFailed: () -> Unit,
-    ): Boolean
+    fun startScan(): Flow<BleScanEvent>?
 
     /**
-     * Stops the active scan. A callback that belongs to this scan is ignored after wards.
+     * Stops the active scan. A result that belongs to this scan is ignored afterwards.
      */
     fun stopScan()
 
     /**
-     * Connects [address] with autoConnect false.
-     * Returns false when the device or the connect permission is missing.
-     * Later failures are reported through [onFailed].
-     * [onNotifyReady] runs when RX notify is enabled.
+     * Connects [address] with autoConnect false and returns its events.
+     * Null when Bluetooth is off, the connect permission is missing, or the device is unknown.
+     * A missing permission leaves the current GATT client in place. An unknown device drops it.
+     * Cancelling the returned flow drops that client.
+     * [BleConnectEvent.NotifyReady] is emitted when RX notify is enabled.
      */
-    fun connect(
-        address: String,
-        onNotification: (value: ByteArray) -> Unit,
-        onNotifyReady: () -> Unit,
-        onLinkLost: () -> Unit,
-        onNotifyMissing: () -> Unit,
-        onFailed: () -> Unit,
-    ): Boolean
+    fun connect(address: String): Flow<BleConnectEvent>?
 
     /**
-     * Drops the current GATT client. Callbacks from that client are ignored.
+     * Drops the current GATT client. Events from that client are ignored.
      */
     fun disconnect()
 

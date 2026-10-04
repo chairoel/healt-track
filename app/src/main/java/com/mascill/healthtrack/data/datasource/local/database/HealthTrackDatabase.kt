@@ -4,8 +4,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.mascill.healthtrack.data.datasource.local.dao.MeasurementDao
 import com.mascill.healthtrack.data.datasource.local.dao.BodyDao
-import com.mascill.healthtrack.data.model.entity.BodyEntity
-import com.mascill.healthtrack.data.model.entity.MeasurementEntity
+import com.mascill.healthtrack.data.datasource.local.entity.BodyEntity
+import com.mascill.healthtrack.data.datasource.local.entity.MeasurementEntity
 
 /**
  * Local tables for body profiles and finished measurements.
