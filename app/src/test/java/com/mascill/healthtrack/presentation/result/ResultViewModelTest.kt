@@ -83,6 +83,42 @@ class ResultViewModelTest {
     }
 
     @Test
+    fun reopenedRowUsesStoredReportWhenRouteHasNoHeightOrHex() = runTest(testDispatcher) {
+        val report = CsBiasV235.parseDefaultZ(1, 29, 166.0, 68.7, 600.0).report!!
+        val stored = StoredMeasurement(
+            id = 4,
+            createdAt = "2026-10-04T00:00:00Z",
+            result = MeasurementResult(
+                mac = "AA:BB:CC:DD:EE:FF",
+                productId = 1,
+                weightKg = 68.7,
+                scaleWeight = "68.7",
+                impedanceOhm = listOf(600.0),
+                formula = "v235",
+                code = 0,
+                report = report,
+            ),
+        )
+        val viewModel = ResultViewModel(
+            measurementRepository = FixedMeasurementRepository(listOf(stored)),
+            bodyRepository = FixedBodyRepository(BodyData(heightCm = 166.0, age = 29, sex = 1)),
+            displayMeasurement = DisplayMeasurementUseCase(),
+            dispatcher = appDispatcher,
+        )
+
+        viewModel.load(measurementId = 4, heightCm = 0.0, broadcastHex = "", gattHex = "")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isLoading)
+        assertEquals("24,9", state.rows.first { it.label == "BMI" }.value)
+        assertEquals("2,77", state.rows.first { it.label == "Tulang (kg)" }.value)
+        assertEquals("1502,0", state.rows.first { it.label == "Metabolisme" }.value)
+        assertEquals("tidak ada", state.broadcastHex)
+        assertEquals("tidak ada", state.gattHex)
+    }
+
+    @Test
     fun missingRowShowsError() = runTest(testDispatcher) {
         val viewModel = ResultViewModel(
             measurementRepository = FixedMeasurementRepository(emptyList()),
@@ -110,4 +146,12 @@ private class EmptyBodyRepository : BodyRepository {
     override fun save(body: BodyData): Int = 1
 
     override fun latest(): BodyData? = null
+}
+
+private class FixedBodyRepository(
+    private val body: BodyData,
+) : BodyRepository {
+    override fun save(body: BodyData): Int = 1
+
+    override fun latest(): BodyData = body
 }

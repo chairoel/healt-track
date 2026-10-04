@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.data.ble
+package com.mascill.healthtrack.data.datasource.ble
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -21,6 +21,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.util.size
 
 /**
  * Chipsea notify characteristic. The session reads this and does not write the TX characteristic
@@ -290,7 +291,7 @@ class BleSession @Inject constructor(
         val sparse = record.manufacturerSpecificData
         var accepted = false
         if (sparse != null) {
-            for (index in 0 until sparse.size()) {
+            for (index in 0 until sparse.size) {
                 val remainder = sparse.valueAt(index)?.copyOf() ?: continue
                 if (sink.onManufacturer(address, sparse.keyAt(index), remainder, connectable)) {
                     accepted = true

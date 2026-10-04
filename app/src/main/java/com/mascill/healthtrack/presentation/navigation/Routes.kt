@@ -22,9 +22,10 @@ data object SessionRoute : NavKey
 data object HistoryRoute : NavKey
 
 /**
- * One measurement that just finished.
- * [heightCm] is the profile used for the indexes. Hex is empty when that frame did not arrive.
- * Opening an older row from history is a later phase.
+ * One stored measurement.
+ * A session that just finished fills [heightCm], [broadcastHex], and [gattHex].
+ * History passes [measurementId] only. The result screen then reads the stored report.
+ * Opening this route does not start Bluetooth.
  */
 @Serializable
 data class ResultRoute(

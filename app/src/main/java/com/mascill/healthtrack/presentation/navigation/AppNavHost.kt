@@ -85,7 +85,11 @@ fun AppNavHost(modifier: Modifier = Modifier) {
                     )
                 }
                 entry<HistoryRoute> {
-                    HistoryScreen()
+                    HistoryScreen(
+                        onOpenMeasurement = { measurementId ->
+                            backStack.navigateTo(ResultRoute(measurementId = measurementId))
+                        },
+                    )
                 }
                 entry<ResultRoute> { key ->
                     ResultScreen(

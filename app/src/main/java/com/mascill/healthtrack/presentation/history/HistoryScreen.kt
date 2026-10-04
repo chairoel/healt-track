@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -31,19 +32,24 @@ private const val SCREEN_PADDING = 16
 private const val ITEM_SPACING = 8
 
 /**
- * Stored measurements. Opening a row is wired in a later phase.
+ * Stored measurements, newest first. A row opens that result and does not start Bluetooth.
  */
 @Composable
 fun HistoryScreen(
+    onOpenMeasurement: (Int) -> Unit,
     viewModel: HistoryViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    HistoryContent(uiState = uiState)
+    HistoryContent(
+        uiState = uiState,
+        onOpenMeasurement = onOpenMeasurement,
+    )
 }
 
 @Composable
 private fun HistoryContent(
     uiState: HistoryUIState,
+    onOpenMeasurement: (Int) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when {
@@ -66,7 +72,10 @@ private fun HistoryContent(
                         items = uiState.items,
                         key = { it.id },
                     ) { item ->
-                        HistoryRow(item = item)
+                        HistoryRow(
+                            item = item,
+                            onClick = { onOpenMeasurement(item.id) },
+                        )
                     }
                 }
             }
@@ -77,9 +86,15 @@ private fun HistoryContent(
 @Composable
 private fun HistoryRow(
     item: StoredMeasurement,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Card(modifier = modifier.fillMaxWidth()) {
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("history-${item.id}"),
+    ) {
         Column(modifier = Modifier.padding(SCREEN_PADDING.dp)) {
             Text(
                 text = weightLabel(item),
@@ -106,6 +121,7 @@ private fun weightLabel(item: StoredMeasurement): String {
 private fun HistoryContentPreview() {
     HealthTrackTheme {
         HistoryContent(
+            onOpenMeasurement = {},
             uiState = HistoryUIState(
                 isLoading = false,
                 items = listOf(

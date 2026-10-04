@@ -1,9 +1,9 @@
 package com.mascill.healthtrack.data.repository
 
-import com.mascill.healthtrack.data.ble.BleSession
-import com.mascill.healthtrack.data.ble.ConnectSink
-import com.mascill.healthtrack.data.ble.ScanSink
-import com.mascill.healthtrack.data.ble.SessionListener
+import com.mascill.healthtrack.data.datasource.ble.BleSession
+import com.mascill.healthtrack.data.datasource.ble.ConnectSink
+import com.mascill.healthtrack.data.datasource.ble.ScanSink
+import com.mascill.healthtrack.data.datasource.ble.SessionListener
 import com.mascill.healthtrack.domain.model.BodyData
 import com.mascill.healthtrack.domain.model.MeasurementSession
 import com.mascill.healthtrack.domain.model.ScaleSessionStatus

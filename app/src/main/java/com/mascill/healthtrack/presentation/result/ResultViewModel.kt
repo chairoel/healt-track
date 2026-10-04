@@ -36,8 +36,9 @@ class ResultViewModel @Inject constructor(
     val uiState: StateFlow<ResultUIState> = _uiState.asStateFlow()
 
     /**
-     * Loads the row [measurementId]. [heightCm] is the profile used for that session.
-     * Blank hex is shown as `tidak ada`.
+     * Loads the stored row [measurementId] and rounds it with [DisplayMeasurementUseCase].
+     * [heightCm] is the profile from the session that just finished. History passes 0 and the
+     * newest body profile is used instead. Blank hex is shown as `tidak ada`.
      */
     fun load(
         measurementId: Int,

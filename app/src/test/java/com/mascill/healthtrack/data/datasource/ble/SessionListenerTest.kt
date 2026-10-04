@@ -1,4 +1,4 @@
-package com.mascill.healthtrack.data.ble
+package com.mascill.healthtrack.data.datasource.ble
 
 import com.mascill.healthtrack.data.di.DataModule
 import com.mascill.healthtrack.data.repository.ScaleGattRepositoryImpl
