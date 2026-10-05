@@ -10,7 +10,6 @@ import com.mascill.healthtrack.domain.usecase.ApplyBroadcastWeightUseCase
 import com.mascill.healthtrack.domain.usecase.CalculateReportUseCase
 import com.mascill.healthtrack.domain.usecase.CloseMeasurementUseCase
 import com.mascill.healthtrack.domain.usecase.DisplayMeasurementUseCase
-import com.mascill.healthtrack.domain.usecase.MeasureScale
 import com.mascill.healthtrack.domain.usecase.MeasureScaleUseCase
 import com.mascill.healthtrack.domain.usecase.MeasurementStateUseCase
 import com.mascill.healthtrack.util.AppDispatcher
@@ -104,7 +103,7 @@ class UseCaseModule {
         measurementState: MeasurementStateUseCase,
         clock: ElapsedClock,
         dispatcher: AppDispatcher,
-    ): MeasureScaleUseCase = MeasureScale(
+    ): MeasureScaleUseCase = MeasureScaleUseCase(
         radio = radio,
         transmissions = transmissions,
         gattFrames = gattFrames,

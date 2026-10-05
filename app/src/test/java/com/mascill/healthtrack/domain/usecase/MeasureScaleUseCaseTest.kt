@@ -56,11 +56,11 @@ class MeasureScaleUseCaseTest {
         assertEquals(1, radio.ends)
     }
 
-    private fun measure(radio: FakeRadio, clock: ElapsedClock): MeasureScale {
+    private fun measure(radio: FakeRadio, clock: ElapsedClock): MeasureScaleUseCase {
         val close = CloseMeasurementUseCase(repository = OneShotMeasurementRepository())
         val transmissions = ScaleTransmissionRepositoryImpl(DataModule.scaleHeaders())
         val gatt = ScaleGattRepositoryImpl(GattParser())
-        return MeasureScale(
+        return MeasureScaleUseCase(
             radio = radio,
             transmissions = transmissions,
             gattFrames = gatt,
