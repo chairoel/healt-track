@@ -26,4 +26,7 @@ data class MeasurementEntity(
     val formula: String,
     val code: Int,
     val report: String,
+    @ColumnInfo(name = "height_cm")
+    val heightCm: Double? = null,
+    val age: Int? = null,
 )

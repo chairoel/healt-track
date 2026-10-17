@@ -116,6 +116,8 @@ class HealthTrackStorageTest {
         assertEquals(second.scaleWeight, stored[0].result.scaleWeight)
         assertEquals(listOf(600.0), stored[0].result.impedanceOhm)
         assertEquals(second.report, stored[0].result.report)
+        assertEquals(166.0, stored[0].result.heightCm!!, 0.0)
+        assertEquals(30, stored[0].result.age)
 
         val raw = database.measurementDao().listNewestFirst().first()
         assertTrue(raw.report.contains("\"bfp\""))
@@ -139,5 +141,7 @@ class HealthTrackStorageTest {
         formula = "v235",
         code = 0,
         report = report,
+        heightCm = 166.0,
+        age = 30,
     )
 }

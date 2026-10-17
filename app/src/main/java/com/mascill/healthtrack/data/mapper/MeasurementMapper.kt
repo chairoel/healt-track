@@ -32,6 +32,8 @@ internal fun MeasurementResult.toEntity(createdAt: String = utcTimestamp()): Mea
         formula = formula,
         code = code,
         report = storedJson.encodeToString(StoredReport.serializer(), report.toStoredReport()),
+        heightCm = heightCm,
+        age = age,
     )
 
 /**
@@ -52,6 +54,8 @@ internal fun MeasurementEntity.toStoredMeasurement(): StoredMeasurement = Stored
         formula = formula,
         code = code,
         report = storedJson.decodeFromString(StoredReport.serializer(), report).toReport(),
+        heightCm = heightCm,
+        age = age,
     ),
 )
 

@@ -46,6 +46,8 @@ class CloseMeasurementUseCase(
             formula = outcome.formula,
             code = outcome.code,
             report = report,
+            heightCm = context.session.body.heightCm,
+            age = context.session.body.age,
         )
         return rated.copy(
             session = rated.session.copy(

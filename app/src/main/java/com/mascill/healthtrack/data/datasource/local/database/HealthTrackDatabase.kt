@@ -12,7 +12,7 @@ import com.mascill.healthtrack.data.datasource.local.entity.MeasurementEntity
  */
 @Database(
     entities = [BodyEntity::class, MeasurementEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class HealthTrackDatabase : RoomDatabase() {

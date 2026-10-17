@@ -21,6 +21,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 import com.mascill.healthtrack.domain.model.MeasurementResult
 import com.mascill.healthtrack.domain.model.StoredMeasurement
 import com.mascill.healthtrack.domain.model.V235Report
@@ -105,6 +108,13 @@ private fun HistoryRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            bodyLabel(item)?.let { label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -114,6 +124,31 @@ private fun weightLabel(item: StoredMeasurement): String {
         item.result.weightKg.toString().replace('.', ',')
     }
     return "$shown kg"
+}
+
+private fun bodyLabel(item: StoredMeasurement): String? {
+    val height = item.result.heightCm
+    val age = item.result.age
+    if (height == null && age == null) {
+        return null
+    }
+    val parts = mutableListOf<String>()
+    if (height != null) {
+        parts += "${heightText(height)} cm"
+    }
+    if (age != null) {
+        parts += "umur $age"
+    }
+    return parts.joinToString(separator = ", ")
+}
+
+private fun heightText(heightCm: Double): String {
+    val symbols = DecimalFormatSymbols(Locale.US).apply {
+        decimalSeparator = ','
+    }
+    return DecimalFormat("0.#", symbols).apply {
+        isGroupingUsed = false
+    }.format(heightCm)
 }
 
 @Preview(showBackground = true)
@@ -136,6 +171,8 @@ private fun HistoryContentPreview() {
                             impedanceOhm = listOf(600.0),
                             formula = "v235",
                             code = 0,
+                            heightCm = 166.0,
+                            age = 29,
                             report = V235Report(
                                 bfp = 1.0,
                                 slm = 1.0,

@@ -2,6 +2,7 @@ package com.mascill.healthtrack.domain.model
 
 /**
  * One finished measurement. [report] comes from the formula, not from GATT composition bytes.
+ * [heightCm] and [age] are the body values used for that report. Older rows leave them empty.
  */
 data class MeasurementResult(
     val mac: String,
@@ -12,6 +13,8 @@ data class MeasurementResult(
     val formula: String,
     val code: Int,
     val report: V235Report,
+    val heightCm: Double? = null,
+    val age: Int? = null,
 )
 
 /**

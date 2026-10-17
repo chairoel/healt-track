@@ -97,11 +97,13 @@ class ResultViewModelTest {
                 formula = "v235",
                 code = 0,
                 report = report,
+                heightCm = 166.0,
+                age = 29,
             ),
         )
         val viewModel = ResultViewModel(
             measurementRepository = FixedMeasurementRepository(listOf(stored)),
-            bodyRepository = FixedBodyRepository(BodyData(heightCm = 166.0, age = 29, sex = 1)),
+            bodyRepository = FixedBodyRepository(BodyData(heightCm = 180.0, age = 40, sex = 0)),
             displayMeasurement = DisplayMeasurementUseCase(),
             dispatcher = appDispatcher,
         )
@@ -112,6 +114,8 @@ class ResultViewModelTest {
         val state = viewModel.uiState.value
         assertFalse(state.isLoading)
         assertEquals("24,9", state.rows.first { it.label == "BMI" }.value)
+        assertEquals("166,0", state.rows.first { it.label == "Tinggi (cm)" }.value)
+        assertEquals("29", state.rows.first { it.label == "Umur" }.value)
         assertEquals("2,77", state.rows.first { it.label == "Tulang (kg)" }.value)
         assertEquals("1502,0", state.rows.first { it.label == "Metabolisme" }.value)
         assertEquals("tidak ada", state.broadcastHex)

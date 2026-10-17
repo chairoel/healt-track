@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.mascill.healthtrack.data.datasource.local.dao.BodyDao
 import com.mascill.healthtrack.data.datasource.local.database.HealthTrackDatabase
+import com.mascill.healthtrack.data.datasource.local.database.MIGRATION_1_2
 import com.mascill.healthtrack.data.datasource.local.dao.MeasurementDao
 import dagger.Module
 import dagger.Provides
@@ -29,7 +30,7 @@ object DatabaseModule {
         context,
         HealthTrackDatabase::class.java,
         DATABASE_NAME,
-    ).build()
+    ).addMigrations(MIGRATION_1_2).build()
 
     /**
      * DAO for the `body` table.

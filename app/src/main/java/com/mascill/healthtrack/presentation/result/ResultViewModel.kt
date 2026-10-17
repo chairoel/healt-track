@@ -3,6 +3,7 @@ package com.mascill.healthtrack.presentation.result
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mascill.healthtrack.domain.model.MeasurementDisplay
+import com.mascill.healthtrack.domain.model.MeasurementResult
 import com.mascill.healthtrack.domain.repository.BodyRepository
 import com.mascill.healthtrack.domain.repository.MeasurementRepository
 import com.mascill.healthtrack.domain.usecase.DisplayMeasurementUseCase
@@ -37,8 +38,9 @@ class ResultViewModel @Inject constructor(
 
     /**
      * Loads the stored row [measurementId] and rounds it with [DisplayMeasurementUseCase].
-     * [heightCm] is the profile from the session that just finished. History passes 0 and the
-     * newest body profile is used instead. Blank hex is shown as `tidak ada`.
+     * [heightCm] is the profile from the session that just finished. A stored height on the row
+     * is used first. History passes 0, and a row saved before height was stored uses the newest
+     * body profile. Blank hex is shown as `tidak ada`.
      */
     fun load(
         measurementId: Int,
@@ -55,7 +57,8 @@ class ResultViewModel @Inject constructor(
                 }
                 return@launch
             }
-            val height = if (heightCm > 0.0) {
+            val storedHeight = stored.result.heightCm?.takeIf { it > 0.0 }
+            val height = storedHeight ?: if (heightCm > 0.0) {
                 heightCm
             } else {
                 bodyRepository.latest()?.heightCm
@@ -77,13 +80,24 @@ class ResultViewModel @Inject constructor(
                 it.copy(
                     isLoading = false,
                     weightText = weightText,
-                    rows = rows(display),
+                    rows = profileRows(stored.result) + rows(display),
                     broadcastHex = broadcastHex.ifBlank { HEX_MISSING },
                     gattHex = gattHex.ifBlank { HEX_MISSING },
                     error = null,
                 )
             }
         }
+    }
+
+    private fun profileRows(result: MeasurementResult): List<ResultRow> {
+        val rows = mutableListOf<ResultRow>()
+        result.heightCm?.let { height ->
+            rows += ResultRow("Tinggi (cm)", formatDecimal(height, ONE_DECIMAL))
+        }
+        result.age?.let { age ->
+            rows += ResultRow("Umur", age.toString())
+        }
+        return rows
     }
 
     private fun rows(display: MeasurementDisplay): List<ResultRow> = listOf(
