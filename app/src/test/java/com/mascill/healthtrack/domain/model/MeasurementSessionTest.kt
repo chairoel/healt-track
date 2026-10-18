@@ -13,6 +13,7 @@ import com.mascill.healthtrack.domain.usecase.CalculateReportUseCase
 import com.mascill.healthtrack.domain.usecase.CloseMeasurementUseCase
 import com.mascill.healthtrack.domain.usecase.MeasurementStateUseCase
 import com.mascill.healthtrack.util.CsBiasV235
+import com.mascill.healthtrack.util.CsBiasVA019
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -207,10 +208,34 @@ class CalculateReportTest {
     }
 
     @Test
-    fun tenImpedancesStayClosed() {
-        assertThrows(IllegalStateException::class.java) {
-            calculateReport(body, 70.0, List(10) { 500.0 })
-        }
+    fun tenImpedancesSelectVA019() {
+        val ohms = listOf(5000, 4800, 300, 4500, 4600, 5100, 4900, 280, 4400, 4700)
+            .map { it / 10.0 }
+        val outcome = calculateReport(body, 70.0, ohms)
+        val direct = CsBiasVA019.parseMultiFrequency(body.sex, body.age, body.heightCm, 70.0, ohms)
+        assertEquals("vA019", outcome.formula)
+        assertEquals(0, outcome.code)
+        val data = direct.data!!
+        assertEquals(
+            V235Report(
+                bfp = data.bfp,
+                slm = data.slm,
+                slp = data.slp,
+                bwp = data.bwp,
+                bmc = data.bmc,
+                vfl = data.vfl,
+                pp = data.pp,
+                smm = data.smm,
+                swt = data.swt,
+                mc = data.mc,
+                wc = data.wc,
+                fc = data.fc,
+                bmr = data.bmr,
+                ma = data.ma,
+                sbc = data.sbc,
+            ),
+            outcome.report,
+        )
     }
 
     @Test
